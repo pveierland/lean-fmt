@@ -282,6 +282,70 @@ private def testEmptyStructureInstance (root work setup : System.FilePath) (appl
     ensureContains spacedText spelled "`spaced` did not keep Lean's own `{ }`"
   ensure (text != spacedText) "the two values rendered the same bytes"
 
+/-- `blank-lines-between-fields`, `-constructors`, and `-alternatives`, all five values over one
+fixture holding each family: structure fields, inductive constructors, a pattern-matching
+definition's alternatives, and `cases` alternatives.
+
+The fixture writes one blank line in each of the first three lists, above an item that carries a
+comment, so `never` has something to remove and `preserve` something to keep. It also has an item of
+each kind the `around-*` values react to: a doc-commented field and constructor, a field and an
+alternative with an own-row comment, and a field and an alternative too long for one row, which only
+the render can tell. `around-multiline` reads that render, so its blank line next to the wrapped
+items is the case a pass over the source alone could not produce. -/
+private def testBlankLinesBetween (root work setup : System.FilePath) (application : String) :
+    IO Unit := do
+  let fixture := work / "Spacing.lean"
+  let arrows := String.intercalate " → " (List.replicate 16 "Nat")
+  let square := String.intercalate " + " (List.replicate 12 "s * s")
+  writeFile fixture <|
+      String.intercalate "\n"
+        ["module", "", "structure Config where", "  name : String", "  path : String", "",
+          "  /-- The number of retries. -/", "  retries : Nat", "  verbose : Bool",
+          s!"  callback : {arrows}", "  -- The last field.", "  last : Nat", "",
+          "inductive Shape where", "  | point", "  | line", "", "  /-- A circle. -/",
+          "  | circle (radius : Nat)", "  | square (side : Nat)", "", "def area : Shape → Nat",
+          "  | .point => 0", "  | .line => 0", "", "  -- Circles are approximated.",
+          "  | .circle r => 3 * r * r", s!"  | .square s => {square}", "",
+          "theorem zeroAdd (n : Nat) : 0 + n = n := by", "  cases n with", "  | zero => rfl",
+          "  | succ m => simp", ""]
+  let render (label : String) (spacing : LeanFmt.Internal.ElementSpacing) : IO String := do
+    let format : LeanFmt.Internal.FormatConfig :=
+      { blankLinesBetweenFields := spacing, blankLinesBetweenConstructors := spacing
+        blankLinesBetweenAlternatives := spacing }
+    let report ←
+      analyzeExact root application setup fixture.toString "Spacing.lean"
+          s!"4j{(Lean.toJson format).compress}"
+    let (_, text) ← canonical report s!"blank-lines-between {label}"
+    return text
+  let never ← render "never" .never
+  for expected in
+    ["  path : String\n  /-- The number of retries. -/", "  | line\n  /-- A circle. -/",
+      "  | .line => 0\n  -- Circles are approximated.", "  | zero => rfl\n  | succ m => simp"] do
+    ensureContains never expected "`never` left a blank line between two items"
+  let preserve ← render "preserve" .preserve
+  for expected in
+    ["  path : String\n\n  /-- The number", "  | line\n\n  /-- A circle.",
+      "  | .line => 0\n\n  -- Circles", "  retries : Nat\n  verbose : Bool\n  callback :",
+      "  | circle (radius : Nat)\n  | square"] do
+    ensureContains preserve expected "`preserve` did not keep exactly the source's blank lines"
+  let always ← render "always" .always
+  for expected in
+    ["  name : String\n\n  path : String\n\n  /--", "  | point\n\n  | line",
+      "  | .point => 0\n\n  | .line => 0", "  | zero => rfl\n\n  | succ m => simp"] do
+    ensureContains always expected "`always` left two items without a blank line"
+  let annotated ← render "around-annotated" .aroundAnnotated
+  for expected in
+    ["  retries : Nat\n\n  verbose : Bool\n  callback :", "Nat\n\n  -- The last field.\n  last",
+      "  | point\n  | line\n\n  /-- A circle.", "  | circle (radius : Nat)\n\n  | square",
+      "  | .point => 0\n  | .line => 0", "  | .circle r => 3 * r * r\n\n  | .square s =>"] do
+    ensureContains annotated expected "`around-annotated` misplaced a blank line"
+  let multiline ← render "around-multiline" .aroundMultiline
+  for expected in
+    ["  retries : Nat\n\n  verbose : Bool\n\n  callback :\n", "Nat\n\n  -- The last field.\n  last",
+      "  | point\n  | line", "  | circle (radius : Nat)\n\n  | square",
+      "  | .circle r => 3 * r * r\n\n  | .square s =>\n", "  | zero => rfl\n  | succ m => simp"] do
+    ensureContains multiline expected "`around-multiline` misplaced a blank line"
+
 /-- `reflow-comments`: a standalone `--` block whose rows overflow the margin is repacked to fit
 when the flag is on, and keeps its bytes when it is off. Empty comment lines split a block into
 paragraphs packed independently; list items, pinned directives, trailing comments, and doc
@@ -369,6 +433,8 @@ public def main (args : List String) : IO UInt32 := do
             run := DeclarationFormatter.testDeclarationWhere root work setup application },
           { name := "empty-structure-instance",
             run := DeclarationFormatter.testEmptyStructureInstance root work setup application },
+          { name := "blank-lines-between",
+            run := DeclarationFormatter.testBlankLinesBetween root work setup application },
           { name := "comment-reflow",
             run := DeclarationFormatter.testCommentReflow root work setup application }]
       runCases "declaration-formatter" cases args

@@ -16,14 +16,18 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "line-width": { "type": "integer", "minimum": 1, "maximum": 1000 },
-        "pinned-comments": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "reflow-comments": { "type": "boolean" },
+        "blank-lines-between-alternatives": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
+        "blank-lines-between-constructors": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
+        "blank-lines-between-fields": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
         "declaration-body": { "type": "string", "enum": ["next-line", "same-line"] },
         "declaration-where": { "type": "string", "enum": ["same-line", "next-line"] },
-        "import-layout": { "type": "string", "enum": ["grouped", "canonical"] },
+        "empty-structure-instance": { "type": "string", "enum": ["compact", "spaced"] },
         "import-groups": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "magic-trailing-comma": { "type": "string", "enum": ["respect", "ignore"] }
+        "import-layout": { "type": "string", "enum": ["grouped", "canonical"] },
+        "line-width": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "magic-trailing-comma": { "type": "string", "enum": ["respect", "ignore"] },
+        "pinned-comments": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "reflow-comments": { "type": "boolean" }
       }
     },
     "lint": {

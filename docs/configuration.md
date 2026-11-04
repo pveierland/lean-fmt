@@ -25,6 +25,9 @@ declaration-body = "next-line"       # or "same-line"
 declaration-where = "same-line"      # or "next-line"
 empty-structure-instance = "compact" # `{}`; or "spaced" for Lean's own `{ }`
 magic-trailing-comma = "respect"     # or "ignore"
+blank-lines-between-fields = "never" # or "preserve", "always", "around-annotated", "around-multiline"
+blank-lines-between-constructors = "never"  # same values
+blank-lines-between-alternatives = "never"  # same values; `match` and `cases`/`induction` arms
 import-layout = "grouped"            # or "canonical" (the organizer's header rewrite)
 import-groups = ["Lean", "Mathlib"]  # canonical layout: sub-block prefixes inside a bucket
 
@@ -87,6 +90,41 @@ the closing bracket explodes: one element per row, the trailing comma kept, and 
 dedented back to the collection's line. The layout is self-perpetuating, because the exploded spelling retains the
 comma; removing the comma is what re-admits a flat layout when the collection fits. `"ignore"` preserves the trailing
 comma but ignores it: width alone decides, as if the comma were not there.
+
+`blank-lines-between-fields`, `blank-lines-between-constructors`, and `blank-lines-between-alternatives` choose where
+blank lines go between the items of a list: the fields of a `structure` or `class`, the constructors of an `inductive`,
+and the alternatives of a `match`, a pattern-matching definition, `fun`, or a `cases`/`induction` tactic. The values
+are those of rustfmt's `blank_lines_between_*` options:
+
+- `"never"` (the default): no blank line between two items, the layout lean-fmt has always produced.
+- `"preserve"`: a blank line exactly where the source wrote one.
+- `"always"`: a blank line between every two items.
+- `"around-annotated"`: a blank line above and below every item with a doc comment, an attribute, or a comment on its
+  own row above it; elsewhere, the source's blank lines.
+- `"around-multiline"`: a blank line above and below every item that spans several rows once laid out; elsewhere, the
+  source's blank lines.
+
+Only the gap between two items changes, never the row after the list opens or after its last item, and a run of
+blank lines is one. A comment on its own row above an item belongs to the item: the blank line goes above the comment,
+and the comment makes the item annotated and several rows long. Whether an item spans several rows depends on the
+margin, so under `"around-multiline"` a change to `line-width` or a rename can move a blank line.
+
+```lean
+structure Config where
+  name : String
+  path : String
+
+  /-- The number of retries. -/
+  retries : Nat
+
+  callback :
+    Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat
+
+  verbose : Bool
+```
+
+That is `"around-multiline"`: the doc-commented field and the wrapped one are set apart, and the two single-row fields
+at the top stay together.
 
 `import-layout` chooses what `lean-fmt organize` (and the editor's organize-imports code action) rewrites the header to.
 The default `"grouped"` sorts within each blank-line/comment-delimited group and never crosses one. `"canonical"`

@@ -107,6 +107,45 @@ instance : ToString MagicTrailingComma where
     | .respect => "respect"
     | .ignore => "ignore"
 
+/-- Where blank lines go between the items of one list: structure fields, inductive constructors,
+or `match` and `cases`/`induction` alternatives (the `blank-lines-between-*` keys).
+
+Only the gap between two items changes, never the row after the list opens. An item owns the
+comments on their own rows directly above it, so a blank line goes above those comments, and they
+count toward the item: a commented item is annotated and spans several rows. Every value except
+`never` keeps a blank line the source wrote between two items, and a run of them is one. -/
+inductive ElementSpacing where
+  /-- The default (`never`): no blank line between items, the layout lean-fmt has always produced.
+  -/
+  | never
+  /-- A blank line between two items exactly where the source wrote one. -/
+  | preserve
+  /-- A blank line between every two items. -/
+  | always
+  /-- A blank line above and below every item with a doc comment, an attribute, or a comment on
+  its own row above it. -/
+  | aroundAnnotated
+  /-- A blank line above and below every item that spans several rows once laid out. -/
+  | aroundMultiline
+  deriving BEq, Lean.ToJson, Lean.FromJson
+
+instance : ToString ElementSpacing where
+  toString
+    | .never => "never"
+    | .preserve => "preserve"
+    | .always => "always"
+    | .aroundAnnotated => "around-annotated"
+    | .aroundMultiline => "around-multiline"
+
+/-- The spacing a configuration string names. -/
+def ElementSpacing.parse? : String → Option ElementSpacing
+  | "never" => some .never
+  | "preserve" => some .preserve
+  | "always" => some .always
+  | "around-annotated" => some .aroundAnnotated
+  | "around-multiline" => some .aroundMultiline
+  | _ => none
+
 /-- The `[format]` section: settings that change the **canonical bytes** a run produces.
 
 The section split marks the cache-identity boundary, not a cosmetic grouping:
@@ -149,6 +188,14 @@ structure FormatConfig where private mk ::
   matching none of them trails in the final sub-block. A prefix `P` matches the module `P`
   itself and every `P.…`. -/
   importGroups : Array String := Imports.defaultImportGroups
+  /-- Blank lines between structure fields (`blank-lines-between-fields`), default `never`. -/
+  blankLinesBetweenFields : ElementSpacing := .never
+  /-- Blank lines between inductive constructors (`blank-lines-between-constructors`), default
+  `never`. -/
+  blankLinesBetweenConstructors : ElementSpacing := .never
+  /-- Blank lines between `match` and `cases`/`induction` alternatives
+  (`blank-lines-between-alternatives`), default `never`. -/
+  blankLinesBetweenAlternatives : ElementSpacing := .never
   deriving BEq, Lean.ToJson, Lean.FromJson
 
 /-- The `[format]` settings as one string, for the `configuration` component of the cache
@@ -164,7 +211,10 @@ def FormatConfig.identityString (format : FormatConfig) : String :=
     declaration-where={format.declarationWhere}\n\
     empty-structure-instance={format.emptyStructureInstance}\n\
     magic-trailing-comma={format.magicTrailingComma}\n\
-    import-layout={format.importLayout}{groups}\nreflow-comments={format.reflowComments}"
+    import-layout={format.importLayout}{groups}\nreflow-comments={format.reflowComments}\n\
+    blank-lines-between-fields={format.blankLinesBetweenFields}\n\
+    blank-lines-between-constructors={format.blankLinesBetweenConstructors}\n\
+    blank-lines-between-alternatives={format.blankLinesBetweenAlternatives}"
 
 /-- How a cache entry's closure currency is computed (`[cache] closure`).
 
@@ -386,6 +436,9 @@ private structure PartialConfig where
   magicTrailingComma? : Option MagicTrailingComma := none
   importLayout? : Option Imports.ImportLayout := none
   importGroups? : Option (Array String) := none
+  blankLinesBetweenFields? : Option ElementSpacing := none
+  blankLinesBetweenConstructors? : Option ElementSpacing := none
+  blankLinesBetweenAlternatives? : Option ElementSpacing := none
   closureMode? : Option ClosureMode := none
   selectedSelectors? : Option (Array String) := none
   ignoredSelectors? : Option (Array String) := none
@@ -431,6 +484,12 @@ private def PartialConfig.compose (parent child : PartialConfig) : PartialConfig
   magicTrailingComma? := orParent child.magicTrailingComma? parent.magicTrailingComma?
   importLayout? := orParent child.importLayout? parent.importLayout?
   importGroups? := orParent child.importGroups? parent.importGroups?
+  blankLinesBetweenFields? :=
+    orParent child.blankLinesBetweenFields? parent.blankLinesBetweenFields?
+  blankLinesBetweenConstructors? :=
+    orParent child.blankLinesBetweenConstructors? parent.blankLinesBetweenConstructors?
+  blankLinesBetweenAlternatives? :=
+    orParent child.blankLinesBetweenAlternatives? parent.blankLinesBetweenAlternatives?
   selectedSelectors? := orParent child.selectedSelectors? parent.selectedSelectors?
   ignoredSelectors? := orParent child.ignoredSelectors? parent.ignoredSelectors?
   fixableSelectors? := orParent child.fixableSelectors? parent.fixableSelectors?
@@ -477,7 +536,10 @@ private def PartialConfig.resolve (config : PartialConfig) : Except String Forma
           emptyStructureInstance := config.emptyStructureInstance?.getD .compact
           magicTrailingComma := config.magicTrailingComma?.getD .respect
           importLayout := config.importLayout?.getD .grouped
-          importGroups := config.importGroups?.getD Imports.defaultImportGroups }
+          importGroups := config.importGroups?.getD Imports.defaultImportGroups
+          blankLinesBetweenFields := config.blankLinesBetweenFields?.getD .never
+          blankLinesBetweenConstructors := config.blankLinesBetweenConstructors?.getD .never
+          blankLinesBetweenAlternatives := config.blankLinesBetweenAlternatives?.getD .never }
       closureMode := config.closureMode?.getD .artifacts
       notices := config.notices
       origins := config.origins
@@ -641,7 +703,8 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
       -- use is an error rather than a notice, so the keys never acquire an ambiguous section.
       | "line-width" | "pinned-comments" | "reflow-comments" | "declaration-body" |
         "declaration-where" | "empty-structure-instance" | "magic-trailing-comma" |
-        "import-layout" | "import-groups" =>
+        "import-layout" | "import-groups" | "blank-lines-between-fields" |
+        "blank-lines-between-constructors" | "blank-lines-between-alternatives" =>
         throw s!"configuration key '{key}' belongs in the [format] section"
       -- Same treatment as the `[format]` keys above: one spelling, one section, no ambiguity.
       | "closure" =>
@@ -754,6 +817,25 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
       config :=
         { config with
           importGroups? := some prefixes, origins }
+    | "blank-lines-between-fields" | "blank-lines-between-constructors" |
+      "blank-lines-between-alternatives" =>
+      let .string _ form := value | throw s!"configuration key '{key}' expects a string"
+      let some spacing := ElementSpacing.parse? form
+        |
+        throw
+            s!"configuration key '{key}' expects \"never\", \"preserve\", \"always\", \
+            \"around-annotated\", or \"around-multiline\", got \"{form}\""
+      config :=
+        match key with
+        | "blank-lines-between-fields" =>
+          { config with
+            blankLinesBetweenFields? := some spacing, origins }
+        | "blank-lines-between-constructors" =>
+          { config with
+            blankLinesBetweenConstructors? := some spacing, origins }
+        | _ =>
+          { config with
+            blankLinesBetweenAlternatives? := some spacing, origins }
     | unknown =>
       throw s!"unknown configuration key: format.{unknown}"
   for (key, value) in cacheSection do
@@ -954,6 +1036,14 @@ def FormatterConfig.describe (config : FormatterConfig) : Array (String × Strin
       winner "format.empty-structure-instance"),
     ("format.magic-trailing-comma", toString config.format.magicTrailingComma,
       winner "format.magic-trailing-comma"),
+    ("format.blank-lines-between-fields", toString config.format.blankLinesBetweenFields,
+      winner "format.blank-lines-between-fields"),
+    ("format.blank-lines-between-constructors",
+      toString config.format.blankLinesBetweenConstructors,
+      winner "format.blank-lines-between-constructors"),
+    ("format.blank-lines-between-alternatives",
+      toString config.format.blankLinesBetweenAlternatives,
+      winner "format.blank-lines-between-alternatives"),
     ("lint.select", renderStrings config.selectedSelectors, winner "select"),
     ("lint.extend-select", renderStrings config.extendSelectSelectors, all "extend-select"),
     ("lint.ignore", renderStrings config.ignoredSelectors, winner "ignore"),

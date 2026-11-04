@@ -8,6 +8,21 @@ notes are on the [releases page](https://github.com/jcreinhold/lean-fmt/releases
 Releases are named for the Lean toolchain they serve. Releases through 0.7.1 used semantic versions and a compatibility
 table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
 
+## Unreleased
+
+### Added
+
+- `[format]` keys `blank-lines-between-fields`, `blank-lines-between-constructors`, and
+  `blank-lines-between-alternatives` place blank lines between structure fields, inductive
+  constructors, and `match`/`cases`/`induction` alternatives: `never` (the default, and the
+  layout so far), `preserve`, `always`, `around-annotated`, or `around-multiline`, after
+  rustfmt's options of the same names. A comment on its own row above an item belongs to it.
+
+### Fixed
+
+- The configuration schema accepts `empty-structure-instance`, which it rejected before. Its
+  `[format]` keys are now in alphabetical order.
+
 ## 4.35.0 — 2026-10-13
 
 ### Upgrading

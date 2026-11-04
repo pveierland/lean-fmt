@@ -521,6 +521,56 @@ extend-select = [\"FMT009\"]\n"
       catch _ =>
         pure true
     ensure badComma "an unknown magic-trailing-comma value was accepted"
+    -- `blank-lines-between-*`: default `never` for all three; each value parses into its own
+    -- field only and moves the configuration identity; a child inherits an unset key; misplaced at
+    -- the top level and malformed are errors.
+    write ".lean-fmt.toml" "[format]\nline-width = 100\n"
+    let spacingDefaults ← Discovery.run root none
+    ensure
+        (spacingDefaults.fallback.format.blankLinesBetweenFields == .never &&
+          spacingDefaults.fallback.format.blankLinesBetweenConstructors == .never &&
+          spacingDefaults.fallback.format.blankLinesBetweenAlternatives == .never)
+        "blank-lines-between-* lost its default"
+    for value in ["preserve", "always", "around-annotated", "around-multiline"] do
+      write ".lean-fmt.toml" s!"[format]\nblank-lines-between-fields = \"{value}\"\n"
+      let fields ← Discovery.run root none
+      ensure
+          (some fields.fallback.format.blankLinesBetweenFields == ElementSpacing.parse? value &&
+            fields.fallback.format.blankLinesBetweenConstructors == .never &&
+            fields.fallback.format.blankLinesBetweenAlternatives == .never)
+          s!"blank-lines-between-fields = \"{value}\" did not parse into its own field"
+      ensure
+          (spacingDefaults.fallback.format.identityString != fields.fallback.format.identityString)
+          s!"blank-lines-between-fields = \"{value}\" did not change the configuration identity"
+    write ".lean-fmt.toml"
+        "[format]\nblank-lines-between-constructors = \"always\"\n\
+        blank-lines-between-alternatives = \"preserve\"\n"
+    let spacingConfigured ← Discovery.run root none
+    ensure (spacingConfigured.fallback.format.blankLinesBetweenConstructors == .always)
+        "blank-lines-between-constructors did not parse"
+    ensure (spacingConfigured.fallback.format.blankLinesBetweenAlternatives == .preserve)
+        "blank-lines-between-alternatives did not parse"
+    write "sub/.lean-fmt.toml" "extend = \"../.lean-fmt.toml\"\n[format]\nline-width = 42\n"
+    let spacingChain ← Discovery.run root none
+    ensure ((spacingChain.configFor "sub/B.lean").format.blankLinesBetweenConstructors == .always)
+        "an unset child's blank-lines-between-constructors did not inherit"
+    write "sub/.lean-fmt.toml" "[format]\nline-width = 42\n"
+    write ".lean-fmt.toml" "blank-lines-between-fields = \"always\"\n"
+    let misplacedSpacing ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure misplacedSpacing "blank-lines-between-fields at the top level was accepted"
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-alternatives = \"sometimes\"\n"
+    let badSpacing ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure badSpacing "an unknown blank-lines-between-alternatives value was accepted"
     -- `import-layout` and `import-groups`: defaults, parsing, identity movement (both are
     -- [format] keys), and misplaced/malformed errors.
     write ".lean-fmt.toml" "[format]\nline-width = 100\n"

@@ -1503,6 +1503,9 @@ to `selectorVocabulary` and `preview` to a boolean. Built as a byte-stable prett
 rule pages — deterministic, so `docs --check` drift-checks it like every other page. -/
 def catalogSchemaJson : String :=
   let sel := "{ \"type\": \"array\", \"items\": { \"$ref\": \"#/$defs/selector\" } }"
+  let elementSpacing :=
+    "{ \"type\": \"string\", \"enum\": [\"never\", \"preserve\", \"always\", " ++
+      "\"around-annotated\", \"around-multiline\"] }"
   let deprecated :=
     "{ \"type\": \"array\", \"items\": { \"$ref\": \"#/$defs/selector\" }, " ++
       "\"deprecated\": true, \"description\": \"moved to [lint]; still accepted, see $defs/migration\" }"
@@ -1548,14 +1551,24 @@ def catalogSchemaJson : String :=
     "      \"type\": \"object\",\n" ++
     "      \"additionalProperties\": false,\n" ++
     "      \"properties\": {\n" ++
-    "        \"line-width\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 1000 },\n" ++
-    "        \"pinned-comments\": { \"type\": \"array\", \"items\": { \"type\": \"string\", \"minLength\": 1 } },\n" ++
-    "        \"reflow-comments\": { \"type\": \"boolean\" },\n" ++
+    "        \"blank-lines-between-alternatives\": " ++
+    elementSpacing ++
+    ",\n" ++
+    "        \"blank-lines-between-constructors\": " ++
+    elementSpacing ++
+    ",\n" ++
+    "        \"blank-lines-between-fields\": " ++
+    elementSpacing ++
+    ",\n" ++
     "        \"declaration-body\": { \"type\": \"string\", \"enum\": [\"next-line\", \"same-line\"] },\n" ++
     "        \"declaration-where\": { \"type\": \"string\", \"enum\": [\"same-line\", \"next-line\"] },\n" ++
-    "        \"import-layout\": { \"type\": \"string\", \"enum\": [\"grouped\", \"canonical\"] },\n" ++
+    "        \"empty-structure-instance\": { \"type\": \"string\", \"enum\": [\"compact\", \"spaced\"] },\n" ++
     "        \"import-groups\": { \"type\": \"array\", \"items\": { \"type\": \"string\", \"minLength\": 1 } },\n" ++
-    "        \"magic-trailing-comma\": { \"type\": \"string\", \"enum\": [\"respect\", \"ignore\"] }\n" ++
+    "        \"import-layout\": { \"type\": \"string\", \"enum\": [\"grouped\", \"canonical\"] },\n" ++
+    "        \"line-width\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 1000 },\n" ++
+    "        \"magic-trailing-comma\": { \"type\": \"string\", \"enum\": [\"respect\", \"ignore\"] },\n" ++
+    "        \"pinned-comments\": { \"type\": \"array\", \"items\": { \"type\": \"string\", \"minLength\": 1 } },\n" ++
+    "        \"reflow-comments\": { \"type\": \"boolean\" }\n" ++
     "      }\n" ++
     "    },\n" ++
     "    \"lint\": {\n" ++

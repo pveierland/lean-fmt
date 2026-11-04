@@ -62,11 +62,12 @@ lean_lib LeanFmtApplication where
     -- production code: the proof library stays out of the binary, the decision does not.
     Glob.one `LeanFmt.Cache.Decision, Glob.one `LeanFmt.Config, Glob.one `LeanFmt.Discovery,
     Glob.one `LeanFmt.Doc, Glob.one `LeanFmt.Edit, Glob.one `LeanFmt.Formatter,
-    Glob.one `LeanFmt.Formatter.Command, Glob.one `LeanFmt.Formatter.NativeLayout,
-    Glob.one `LeanFmt.Formatter.Trivia, Glob.one `LeanFmt.GitSelection, Glob.one `LeanFmt.Project,
-    Glob.one `LeanFmt.Semantic, Glob.one `LeanFmt.SyntaxArtifact, Glob.one `LeanFmt.Validator,
-    Glob.one `LeanFmt.LanguageServer, Glob.one `LeanFmt.Watch, Glob.one `LeanFmt.Application,
-    Glob.one `LeanFmt.NativeFormat, Glob.one `LeanFmt.Cli]
+    Glob.one `LeanFmt.Formatter.BlankLines, Glob.one `LeanFmt.Formatter.Command,
+    Glob.one `LeanFmt.Formatter.NativeLayout, Glob.one `LeanFmt.Formatter.Trivia,
+    Glob.one `LeanFmt.GitSelection, Glob.one `LeanFmt.Project, Glob.one `LeanFmt.Semantic,
+    Glob.one `LeanFmt.SyntaxArtifact, Glob.one `LeanFmt.Validator, Glob.one `LeanFmt.LanguageServer,
+    Glob.one `LeanFmt.Watch, Glob.one `LeanFmt.Application, Glob.one `LeanFmt.NativeFormat,
+    Glob.one `LeanFmt.Cli]
 
 /- The plugin shared library bundles the small semantic core at the process boundary. This
 later declaration stays the canonical owner for ordinary application imports, so changing

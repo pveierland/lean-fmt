@@ -9,6 +9,7 @@ module
 import all LeanFmt.ArtifactStore
 import all LeanFmt.Comments
 import all LeanFmt.Formatter
+import all LeanFmt.Formatter.BlankLines
 import all LeanFmt.Formatter.Command
 import all LeanFmt.Formatter.NativeLayout
 import all LeanFmt.Formatter.Trivia
@@ -264,6 +265,9 @@ private def buildFormatDraft (normalized : String) (source : LosslessSource)
   let mut explicitDocuments := 0
   let mut descriptorDocuments := 0
   let mut degraded : Array DegradedCommand := #[]
+  -- The commands laid out natively, for the blank-line pass. A command emitted as its own bytes is
+  -- not in it: its bytes are the source's, blank lines included.
+  let mut laidOut : Array Formatter.BlankLines.Command := #[]
   let fileDangling := Formatter.Trivia.fileDangling ownership
   checkCancelled
   if headerRange.start < headerRange.stop then
@@ -382,6 +386,10 @@ private def buildFormatDraft (normalized : String) (source : LosslessSource)
         pure formatted
       | none, .error failure =>
         return .error { command? := some index, failure }
+    if degradedDocument?.isNone then
+      laidOut :=
+        laidOut.push
+          { source := command.stx, context := command.parse.toModuleContext, unit := ⟨start, stop⟩ }
     nativeDocuments := nativeDocuments + 1
     alignedTokens := alignedTokens + formatted.metrics.tokenLeaves
     nativeCommentLeaves := nativeCommentLeaves + formatted.metrics.commentLeaves
@@ -436,6 +444,11 @@ private def buildFormatDraft (normalized : String) (source : LosslessSource)
   checkCancelled
   let rendered :=
     renderDetailed format.lineWidth document format.pinnedComments format.reflowComments
+  -- After rendering because whether an item spans several rows is the render's outcome.
+  let rendered :=
+    if Formatter.BlankLines.enabled format then
+      Formatter.BlankLines.apply format normalized rendered laidOut
+    else rendered
   -- A command the toolchain could not lay out is emitted verbatim rather than refusing the file.
   -- That is a degradation, so it is counted: the count rides the envelope back to the parent,
   -- `LEAN_FMT_PROFILE_PHASES=1` reports it, and a corpus run that starts dropping commands shows a
