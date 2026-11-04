@@ -41,8 +41,7 @@ inductive SyntaxEntry where
   | missing
   | node (info : EncodedSourceInfo) (kind : Nat) (children : Nat)
   | atom (info : EncodedSourceInfo) (value? : Option String)
-  |
-  ident (info : EncodedSourceInfo) (raw? : Option String) (value : Lean.Name)
+  | ident (info : EncodedSourceInfo) (raw? : Option String) (value : Lean.Name)
     (preresolved : Array EncodedPreresolved)
   deriving Inhabited, BEq, Repr
 
