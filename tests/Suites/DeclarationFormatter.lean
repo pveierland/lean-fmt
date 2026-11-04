@@ -400,6 +400,50 @@ private def testBlankLinesBetweenDoElements (root work setup : System.FilePath)
   ensureContains spread "    total := total + item\n\n    cell.set total"
       "`compact-block-size = 0` still kept a short block tight"
 
+/-- `blank-lines-between-commands = "grouped"` against the default `roles`, with one-line bodies so
+that most commands are single rows. `open` and `variable` are setup commands `roles` keeps together
+and two kinds `grouped` sets apart; the two `abbrev`s and the first two `def`s are one kind and stay
+together; the blank line the source writes under `g` is kept, and the commented `i` spans two rows,
+so it is set apart. -/
+private def testBlankLinesBetweenCommands (root work setup : System.FilePath)
+    (application : String) : IO Unit := do
+  let fixture := work / "CommandSpacing.lean"
+  writeFile fixture <|
+      String.intercalate "\n"
+        ["module", "", "namespace Foo", "open Nat", "variable (n : Nat)", "abbrev A := Nat",
+          "abbrev B := Nat", "def f : Nat := n", "def g : Nat := n -- trailing", "",
+          "def h : Nat := n", "-- leading comment", "def i : Nat := n", "theorem t : 1 = 1 := rfl",
+          "end Foo", ""]
+  let render (label : String) (spacing : LeanFmt.Internal.CommandSpacing) :
+    IO (Lean.Json × String) := do
+    let format : LeanFmt.Internal.FormatConfig :=
+      { blankLinesBetweenCommands := spacing, declarationBody := .sameLine }
+    let report ←
+      analyzeExact root application setup fixture.toString "CommandSpacing.lean"
+          s!"4j{(Lean.toJson format).compress}"
+    canonical report s!"blank-lines-between-commands {label}"
+  let (_, roles) ← render "roles" .roles
+  for expected in ["open Nat\nvariable (n : Nat)\n\nabbrev A", "abbrev A := Nat\n\nabbrev B"] do
+    ensureContains roles expected "`roles` changed the composer's command spacing"
+  let (canonicalJson, grouped) ← render "grouped" .grouped
+  -- The blank line in front of a command is that command's, as the composer emits it, so a range
+  -- that formats the command brings it along and no command's mark ends on a blank row. The header
+  -- mark is first, and ends on its own.
+  let some marks := (jsonAt? canonicalJson [.field "sourceMap"]).bind (·.getArr?.toOption)
+    | throw <| IO.userError "blank-lines-between-commands: canonical has no sourceMap"
+  let bytes := grouped.toUTF8
+  for mark in marks.toList.drop 1 do
+    let offset (field : String) : Nat :=
+      ((jsonAt? mark [.field "output", .field field]).bind (·.getNat?.toOption)).getD 0
+    let output := String.fromUTF8! (bytes.extract (offset "start") (offset "stop"))
+    ensure (!output.endsWith "\n\n")
+        s!"`grouped` left a command's blank line in the mark before it: {output.quote}"
+  ensureContains grouped
+      ("namespace Foo\n\nopen Nat\n\nvariable (n : Nat)\n\nabbrev A := Nat\nabbrev B := Nat\n\n" ++
+        "def f : Nat := n\ndef g : Nat := n -- trailing\n\ndef h : Nat := n\n\n" ++
+        "-- leading comment\ndef i : Nat := n\n\ntheorem t : 1 = 1 := rfl\n\nend Foo\n")
+      "`grouped` misplaced a blank line between commands"
+
 /-- `blank-lines-between-tactics`, against `preserve` and the default `never`, in an indented block
 and a bracketed one. The two-row `·` is the multiline tactic, so `around-multiline` sets it apart;
 the source's blank line above it is the one `never` removes, and the one inside the braces shows a
@@ -533,6 +577,8 @@ public def main (args : List String) : IO UInt32 := do
               DeclarationFormatter.testBlankLinesBetweenDoElements root work setup application },
           { name := "blank-lines-between-tactics",
             run := DeclarationFormatter.testBlankLinesBetweenTactics root work setup application },
+          { name := "blank-lines-between-commands",
+            run := DeclarationFormatter.testBlankLinesBetweenCommands root work setup application },
           { name := "comment-reflow",
             run := DeclarationFormatter.testCommentReflow root work setup application }]
       runCases "declaration-formatter" cases args

@@ -153,6 +153,31 @@ def ElementSpacing.parse? : String → Option ElementSpacing
   | "grouped" => some .grouped
   | _ => none
 
+/-- Where blank lines go between two top-level commands (`blank-lines-between-commands`). A command
+owns the comments on their own rows directly above it, as an item does. -/
+inductive CommandSpacing where
+  /-- The default (`roles`): a blank line between every two commands except two setup commands
+  (`open`, `export`, `universe`, `variable`, `set_option`) and an empty `namespace` or `section`
+  and its `end`, the layout lean-fmt has always produced. -/
+  | roles
+  /-- A blank line where the source wrote one, around every command that spans several rows, and
+  between two single-row commands of different kinds, so a run of one-line `abbrev`s or `open`s
+  stays together. A declaration's kind is its keyword, `def` or `theorem`; `… in` is the kind of
+  the command it scopes. -/
+  | grouped
+  deriving BEq, Lean.ToJson, Lean.FromJson
+
+instance : ToString CommandSpacing where
+  toString
+    | .roles => "roles"
+    | .grouped => "grouped"
+
+/-- The command spacing a configuration string names. -/
+def CommandSpacing.parse? : String → Option CommandSpacing
+  | "roles" => some .roles
+  | "grouped" => some .grouped
+  | _ => none
+
 /-- The `[format]` section: settings that change the **canonical bytes** a run produces.
 
 The section split marks the cache-identity boundary, not a cosmetic grouping:
@@ -209,6 +234,8 @@ structure FormatConfig where private mk ::
   /-- Blank lines between the tactics of a tactic block (`blank-lines-between-tactics`), default
   `never`. -/
   blankLinesBetweenTactics : ElementSpacing := .never
+  /-- Blank lines between top-level commands (`blank-lines-between-commands`), default `roles`. -/
+  blankLinesBetweenCommands : CommandSpacing := .roles
   /-- A `do` or tactic block with at most this many elements gets no blank line the spacing would add
   (`compact-block-size`), default 0: every block is spaced. Blank lines the source wrote are
   kept. -/
@@ -233,6 +260,7 @@ def FormatConfig.identityString (format : FormatConfig) : String :=
     blank-lines-between-constructors={format.blankLinesBetweenConstructors}\n\
     blank-lines-between-do-elements={format.blankLinesBetweenDoElements}\n\
     blank-lines-between-tactics={format.blankLinesBetweenTactics}\n\
+    blank-lines-between-commands={format.blankLinesBetweenCommands}\n\
     compact-block-size={format.compactBlockSize}\n\
     blank-lines-between-alternatives={format.blankLinesBetweenAlternatives}"
 
@@ -461,6 +489,7 @@ private structure PartialConfig where
   blankLinesBetweenAlternatives? : Option ElementSpacing := none
   blankLinesBetweenDoElements? : Option ElementSpacing := none
   blankLinesBetweenTactics? : Option ElementSpacing := none
+  blankLinesBetweenCommands? : Option CommandSpacing := none
   compactBlockSize? : Option Nat := none
   closureMode? : Option ClosureMode := none
   selectedSelectors? : Option (Array String) := none
@@ -517,6 +546,8 @@ private def PartialConfig.compose (parent child : PartialConfig) : PartialConfig
     orParent child.blankLinesBetweenDoElements? parent.blankLinesBetweenDoElements?
   blankLinesBetweenTactics? :=
     orParent child.blankLinesBetweenTactics? parent.blankLinesBetweenTactics?
+  blankLinesBetweenCommands? :=
+    orParent child.blankLinesBetweenCommands? parent.blankLinesBetweenCommands?
   compactBlockSize? := orParent child.compactBlockSize? parent.compactBlockSize?
   selectedSelectors? := orParent child.selectedSelectors? parent.selectedSelectors?
   ignoredSelectors? := orParent child.ignoredSelectors? parent.ignoredSelectors?
@@ -570,6 +601,7 @@ private def PartialConfig.resolve (config : PartialConfig) : Except String Forma
           blankLinesBetweenAlternatives := config.blankLinesBetweenAlternatives?.getD .never
           blankLinesBetweenDoElements := config.blankLinesBetweenDoElements?.getD .never
           blankLinesBetweenTactics := config.blankLinesBetweenTactics?.getD .never
+          blankLinesBetweenCommands := config.blankLinesBetweenCommands?.getD .roles
           compactBlockSize := config.compactBlockSize?.getD 0 }
       closureMode := config.closureMode?.getD .artifacts
       notices := config.notices
@@ -736,7 +768,8 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         "declaration-where" | "empty-structure-instance" | "magic-trailing-comma" |
         "import-layout" | "import-groups" | "blank-lines-between-fields" |
         "blank-lines-between-constructors" | "blank-lines-between-alternatives" |
-        "blank-lines-between-do-elements" | "blank-lines-between-tactics" | "compact-block-size" =>
+        "blank-lines-between-do-elements" | "blank-lines-between-tactics" |
+        "blank-lines-between-commands" | "compact-block-size" =>
         throw s!"configuration key '{key}' belongs in the [format] section"
       -- Same treatment as the `[format]` keys above: one spelling, one section, no ambiguity.
       | "closure" =>
@@ -877,6 +910,13 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         | _ =>
           { config with
             blankLinesBetweenTactics? := some spacing, origins }
+    | "blank-lines-between-commands" =>
+      let .string _ form := value | throw s!"configuration key '{key}' expects a string"
+      let some spacing := CommandSpacing.parse? form
+        | throw s!"configuration key '{key}' expects \"roles\" or \"grouped\", got \"{form}\""
+      config :=
+        { config with
+          blankLinesBetweenCommands? := some spacing, origins }
     | "compact-block-size" =>
       let .integer _ size := value
         | throw "configuration key 'compact-block-size' expects an integer"
@@ -1097,6 +1137,8 @@ def FormatterConfig.describe (config : FormatterConfig) : Array (String × Strin
       winner "format.blank-lines-between-do-elements"),
     ("format.blank-lines-between-tactics", toString config.format.blankLinesBetweenTactics,
       winner "format.blank-lines-between-tactics"),
+    ("format.blank-lines-between-commands", toString config.format.blankLinesBetweenCommands,
+      winner "format.blank-lines-between-commands"),
     ("format.compact-block-size", toString config.format.compactBlockSize,
       winner "format.compact-block-size"),
     ("lint.select", renderStrings config.selectedSelectors, winner "select"),

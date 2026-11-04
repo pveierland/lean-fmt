@@ -30,6 +30,7 @@ blank-lines-between-constructors = "never"  # same values
 blank-lines-between-alternatives = "never"  # same values; `match` and `cases`/`induction` arms
 blank-lines-between-do-elements = "never"   # same values, or "grouped"
 blank-lines-between-tactics = "never"       # the values of blank-lines-between-fields
+blank-lines-between-commands = "roles"      # or "grouped"
 compact-block-size = 0               # a `do` or tactic block this short gets no added blank line
 import-layout = "grouped"            # or "canonical" (the organizer's header rewrite)
 import-groups = ["Lean", "Mathlib"]  # canonical layout: sub-block prefixes inside a bucket
@@ -140,6 +141,33 @@ at the top stay together.
 
 `blank-lines-between-tactics` does the same for the tactics of a tactic block, indented or in braces, with the values
 of `blank-lines-between-fields`. A `·` block is one tactic, multi-row when its body is.
+
+`blank-lines-between-commands` places blank lines between top-level commands:
+
+- `"roles"` (the default): a blank line between every two commands, except two setup commands (`open`, `export`,
+  `universe`, `variable`, `set_option`) in a row and an empty `namespace` or `section` and its `end`.
+- `"grouped"`: a blank line where the source wrote one, around every command that spans several rows, and between two
+  single-row commands of different kinds. A declaration's kind is its keyword, so two one-line `abbrev`s stay together
+  and an `abbrev` and a `def` do not; `set_option … in` takes the kind of the command it scopes; any other command is
+  its own syntax kind, so `open` and `variable` are two. A comment on its own row above a command belongs to it.
+
+```lean
+namespace Foo
+
+open Nat
+
+variable (n : Nat)
+
+abbrev A := Nat
+abbrev B := Nat
+
+def f : Nat := n
+
+end Foo
+```
+
+That is `"grouped"` with `declaration-body = "same-line"`. With the default `"next-line"` every definition spans two
+rows, so each is set apart, as under `"roles"`.
 
 `compact-block-size` exempts a `do` or tactic block from the blank lines its spacing would add when the block has at
 most that many elements; it keeps the blank lines the source wrote. The default `0` exempts nothing.

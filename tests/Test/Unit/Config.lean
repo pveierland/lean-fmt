@@ -626,6 +626,25 @@ extend-select = [\"FMT009\"]\n"
       catch _ =>
         pure true
     ensure groupedTactics "blank-lines-between-tactics = \"grouped\" was accepted"
+    -- `blank-lines-between-commands`: default, parsing, identity, and an element spacing refused.
+    ensure (blockDefaults.fallback.format.blankLinesBetweenCommands == .roles)
+        "blank-lines-between-commands lost its default"
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-commands = \"grouped\"\n"
+    let commandsConfigured ← Discovery.run root none
+    ensure (commandsConfigured.fallback.format.blankLinesBetweenCommands == .grouped)
+        "blank-lines-between-commands did not parse"
+    ensure
+        (blockDefaults.fallback.format.identityString !=
+          commandsConfigured.fallback.format.identityString)
+        "blank-lines-between-commands did not change the identity"
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-commands = \"preserve\"\n"
+    let preservedCommands ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure preservedCommands "blank-lines-between-commands = \"preserve\" was accepted"
     -- `import-layout` and `import-groups`: defaults, parsing, identity movement (both are
     -- [format] keys), and misplaced/malformed errors.
     write ".lean-fmt.toml" "[format]\nline-width = 100\n"

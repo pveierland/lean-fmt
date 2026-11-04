@@ -33,15 +33,21 @@ sense worth reading: every `let` form is one kind, a reassignment another, and a
 function it calls. `compact-block-size` exempts a short `do` or tactic block from every blank line
 the spacing would add, since a block of two or three elements reads as one step.
 
-A command that does not reparse to its source is left as rendered. Nothing here can make that
+`blank-lines-between-commands = "grouped"` respaces the boundary between two neighbouring commands
+the same way. The composer puts its blank line in front of a command as the first row of that
+command's mark, so the pass adds or removes exactly that row; a boundary next to a command emitted as
+its own bytes keeps the composer's answer.
+
+A command that does not reparse to its source keeps its lists as rendered. Nothing here can make that
 happen, since a blank row is never a token, and the validator refuses such a command on its own
 terms. -/
 
 namespace LeanFmt.Internal.Formatter.BlankLines
 
-/-- One formatted command: the syntax Lean parsed, the context it parsed it under, and the source
-range its mark in the rendered module covers. -/
+/-- One formatted command: its position in the module, the syntax Lean parsed, the context it parsed
+it under, and the source range its mark in the rendered module covers. -/
 structure Command where
+  index : Nat
   source : Lean.Syntax
   context : Lean.Parser.ParserModuleContext
   unit : SourceRange
@@ -75,10 +81,12 @@ private def Family.block : Family → Bool
   | .doElements | .tactics => true
   | _ => false
 
-/-- Whether any list family asks for something other than the layout's own `never`. -/
+/-- Whether any list family asks for something other than the layout's own `never`, or commands for
+something other than its `roles`. -/
 def enabled (format : FormatConfig) : Bool :=
   [Family.fields, .constructors, .alternatives, .doElements, .tactics].any
-    (·.spacing format != .never)
+      (·.spacing format != .never) ||
+    format.blankLinesBetweenCommands != .roles
 
 private def first (stx : Lean.Syntax) : Lean.Syntax :=
   if stx.getKind == Lean.choiceKind then stx.getArg 0 else stx
@@ -241,6 +249,9 @@ private structure Edit where
   start : Nat
   stop : Nat
   replacement : String
+  /-- An insertion at a mark boundary that belongs to the mark after it: the blank line in front of a
+  command is that command's, as the composer emits it. -/
+  following : Bool := false
 
 /-- The rows strictly between the one `stop` ends on and the one `item` starts on. -/
 private structure Gap where
@@ -319,11 +330,79 @@ private def sequenceEdits (policy : Policy) (sourceBytes bytes : ByteArray) (sta
     return edits
 
 /-- Where `offset` moves to once `edits` (sorted, disjoint) are applied. An offset inside an edit
-cannot be a mark boundary, since every edit lies strictly inside one command. -/
+cannot be a mark boundary: a list's edit lies strictly inside one command, and a command boundary's
+starts at the command's mark. -/
 private def shift (edits : Array Edit) (offset : Nat) : Nat :=
   edits.foldl (init := offset) fun moved edit =>
-    if edit.stop ≤ offset then moved + edit.replacement.utf8ByteSize - (edit.stop - edit.start)
-    else moved
+    let before :=
+      edit.stop < offset || (edit.stop == offset && !(edit.following && edit.start == offset))
+    if before then moved + edit.replacement.utf8ByteSize - (edit.stop - edit.start) else moved
+
+/-- The kind `grouped` compares two commands by: a declaration's keyword, the command a `… in`
+scopes, or otherwise the command's syntax kind. -/
+private partial def commandKind (command : Lean.Syntax) : String :=
+  let command := first command
+  match command.getKind with
+  | ``Lean.Parser.Command.declaration => (first (command.getArg 1)).getKind.toString
+  | ``Lean.Parser.Command.in => commandKind (command.getArg 2)
+  | kind => kind.toString
+
+/-- One laid-out command's mark in the rendered text. -/
+private structure Placed where
+  command : Command
+  output : SourceRange
+
+private def filled (byte : UInt8) : Bool :=
+  !(byte == 32 || byte == 10 || byte == 9 || byte == 13)
+
+/-- The first and last rows of a range that hold more than whitespace. -/
+private structure Rows where
+  first : Nat
+  last : Nat
+
+private def contentRows? (bytes : ByteArray) (starts : Array Nat) (range : SourceRange) :
+    Option Rows :=
+  Id.run do
+    let mut first := range.start
+    while first < range.stop && !filled bytes[first]! do
+      first := first + 1
+    let mut last := range.stop
+    while range.start < last && !filled bytes[last - 1]! do
+      last := last - 1
+    if first < last then
+      return some { first := rowOf starts first, last := rowOf starts (last - 1) }
+    return none
+
+/-- Whether the source wrote a blank row under a command, above whatever comes next. A comment
+trailing the command's last row is still the command's, so the search starts on the row after. -/
+private def blankBelow (source : ByteArray) (stop : Nat) : Bool :=
+  Id.run do
+    let mut cursor := stop
+    while cursor < source.size && source[cursor]! != 10 do
+      cursor := cursor + 1
+    while cursor < source.size && !filled source[cursor]! do
+      cursor := cursor + 1
+    return blankBetween source stop cursor
+
+/-- The edit `grouped` asks for in front of `next`, a command directly after `previous`. The
+composer's blank line in front of a command is the first row of its mark, so the edit adds or
+removes that row; whatever comments lead the command stay below it. -/
+private def commandEdit? (sourceBytes bytes : ByteArray) (starts : Array Nat)
+    (previous next : Placed) : Option Edit := do
+  guard (previous.command.index + 1 == next.command.index)
+  let previousRows ← contentRows? bytes starts previous.output
+  let nextRows ← contentRows? bytes starts next.output
+  let stop ← previous.command.source.getTailPos?
+  let multiline := previousRows.first != previousRows.last || nextRows.first != nextRows.last
+  let kinds := commandKind previous.command.source != commandKind next.command.source
+  let blank := blankBelow sourceBytes stop.byteIdx || multiline || kinds
+  let start := next.output.start
+  let present := start < bytes.size && bytes[start]! == 10
+  if blank && !present then
+    return { start, stop := start, replacement := "\n", following := true }
+  if !blank && present then
+    return { start, stop := start + 1, replacement := "" }
+  none
 
 /-- Apply the configured spacing to a rendered module. `source` is the normalized source the
 commands were parsed from; `commands` are the commands laid out natively, so a command emitted
@@ -336,6 +415,7 @@ def apply (format : FormatConfig) (source : String) (rendered : Rendered)
     let starts := rowStarts bytes
     let input := Lean.Parser.mkInputContext rendered.text "<candidate>"
     let mut edits : Array Edit := #[]
+    let mut previous? : Option Placed := none
     -- Marks and commands are both in source order, so one cursor finds every command's mark.
     let mut markIndex := 0
     for command in commands do
@@ -346,6 +426,12 @@ def apply (format : FormatConfig) (source : String) (rendered : Rendered)
         probe := probe + 1
       let some mark := rendered.sourceMap[probe]? | continue
       markIndex := probe + 1
+      if format.blankLinesBetweenCommands == .grouped then
+        let placed : Placed := { command, output := mark.output }
+        if let some previous := previous? then
+          if let some edit := commandEdit? sourceBytes bytes starts previous placed then
+            edits := edits.push edit
+        previous? := some placed
       let (output, _, messages) :=
         Lean.Parser.parseCommand input command.context { pos := ⟨mark.output.start⟩ } .empty
       unless !messages.hasErrors && output.structEq command.source do

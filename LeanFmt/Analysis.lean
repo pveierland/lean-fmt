@@ -389,7 +389,8 @@ private def buildFormatDraft (normalized : String) (source : LosslessSource)
     if degradedDocument?.isNone then
       laidOut :=
         laidOut.push
-          { source := command.stx, context := command.parse.toModuleContext, unit := ⟨start, stop⟩ }
+          { index, source := command.stx, context := command.parse.toModuleContext,
+            unit := ⟨start, stop⟩ }
     nativeDocuments := nativeDocuments + 1
     alignedTokens := alignedTokens + formatted.metrics.tokenLeaves
     nativeCommentLeaves := nativeCommentLeaves + formatted.metrics.commentLeaves

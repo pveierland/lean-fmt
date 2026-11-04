@@ -23,6 +23,10 @@ table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
   lines.
 - `blank-lines-between-tactics` does the same for the tactics of a tactic block, with the values
   of `blank-lines-between-fields`; `compact-block-size` applies to tactic blocks too.
+- `blank-lines-between-commands` chooses between `roles` (the default, the spacing so far) and
+  `grouped`: a blank line where the source wrote one, around every multi-row command, and
+  between two single-row commands of different kinds, so a run of one-line `abbrev`s or `open`s
+  stays together.
 
 ### Fixed
 

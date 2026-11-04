@@ -1557,6 +1557,7 @@ def catalogSchemaJson : String :=
     "        \"blank-lines-between-alternatives\": " ++
     elementSpacing ++
     ",\n" ++
+    "        \"blank-lines-between-commands\": { \"type\": \"string\", \"enum\": [\"roles\", \"grouped\"] },\n" ++
     "        \"blank-lines-between-constructors\": " ++
     elementSpacing ++
     ",\n" ++
