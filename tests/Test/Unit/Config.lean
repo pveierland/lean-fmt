@@ -543,16 +543,14 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "blank-lines-between-fields = \"always\"\n"
     let misplacedSpacing ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedSpacing "blank-lines-between-fields at the top level was accepted"
     write ".lean-fmt.toml" "[format]\nblank-lines-between-alternatives = \"sometimes\"\n"
     let badSpacing ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badSpacing "an unknown blank-lines-between-alternatives value was accepted"
@@ -560,8 +558,7 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "[format]\nblank-lines-between-fields = \"grouped\"\n"
     let groupedFields ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure groupedFields "blank-lines-between-fields = \"grouped\" was accepted"
@@ -587,8 +584,7 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "[format]\ncompact-block-size = -1\n"
     let negativeBlock ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure negativeBlock "a negative compact-block-size was accepted"
@@ -606,8 +602,7 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "[format]\nblank-lines-between-tactics = \"grouped\"\n"
     let groupedTactics ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure groupedTactics "blank-lines-between-tactics = \"grouped\" was accepted"
@@ -625,8 +620,7 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "[format]\nblank-lines-between-commands = \"preserve\"\n"
     let preservedCommands ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure preservedCommands "blank-lines-between-commands = \"preserve\" was accepted"
