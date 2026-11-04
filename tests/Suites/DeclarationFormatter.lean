@@ -400,6 +400,45 @@ private def testBlankLinesBetweenDoElements (root work setup : System.FilePath)
   ensureContains spread "    total := total + item\n\n    cell.set total"
       "`compact-block-size = 0` still kept a short block tight"
 
+/-- `blank-lines-between-tactics`, against `preserve` and the default `never`, in an indented block
+and a bracketed one. The two-row `·` is the multiline tactic, so `around-multiline` sets it apart;
+the source's blank line above it is the one `never` removes, and the one inside the braces shows a
+bracketed block's tactics are a list too. At `compact-block-size = 5` the five-tactic block is
+short enough to add nothing. -/
+private def testBlankLinesBetweenTactics (root work setup : System.FilePath)
+    (application : String) : IO Unit := do
+  let fixture := work / "TacticSpacing.lean"
+  writeFile fixture <|
+      String.intercalate "\n"
+        ["module", "", "theorem pair (a b : Nat) (h : a = b) : b = a ∧ a = a := by",
+          "  have hb : b = b := rfl", "  have ha : a = a := rfl", "  constructor", "",
+          "  · subst h", "    rfl", "  · exact ha", "", "example : True := by", "  {", "    skip",
+          "", "    trivial }", ""]
+  let render (label : String) (spacing : LeanFmt.Internal.ElementSpacing) (compact : Nat) :
+    IO String := do
+    let format : LeanFmt.Internal.FormatConfig :=
+      { blankLinesBetweenTactics := spacing, compactBlockSize := compact }
+    let report ←
+      analyzeExact root application setup fixture.toString "TacticSpacing.lean"
+          s!"4j{(Lean.toJson format).compress}"
+    let (_, text) ← canonical report s!"blank-lines-between-tactics {label}"
+    return text
+  let never ← render "never" .never 0
+  for expected in ["  constructor\n  · subst h", "  skip\n  trivial"] do
+    ensureContains never expected "`never` kept the source's blank line between tactics"
+  let preserve ← render "preserve" .preserve 0
+  for expected in
+    ["  constructor\n\n  · subst h", "    rfl\n  · exact ha", "  skip\n\n  trivial"] do
+    ensureContains preserve expected "`preserve` did not keep exactly the source's blank lines"
+  let multiline ← render "around-multiline" .aroundMultiline 0
+  for expected in
+    ["  have ha : a = a := rfl\n  constructor\n\n  · subst h\n    rfl\n\n  · exact ha",
+      "  skip\n\n  trivial"] do
+    ensureContains multiline expected "`around-multiline` misplaced a blank line between tactics"
+  let compact ← render "around-multiline, compact" .aroundMultiline 5
+  ensureContains compact "    rfl\n  · exact ha"
+      "`compact-block-size = 5` still spaced a five-tactic block"
+
 /-- `reflow-comments`: a standalone `--` block whose rows overflow the margin is repacked to fit
 when the flag is on, and keeps its bytes when it is off. Empty comment lines split a block into
 paragraphs packed independently; list items, pinned directives, trailing comments, and doc
@@ -492,6 +531,8 @@ public def main (args : List String) : IO UInt32 := do
           { name := "blank-lines-between-do-elements",
             run :=
               DeclarationFormatter.testBlankLinesBetweenDoElements root work setup application },
+          { name := "blank-lines-between-tactics",
+            run := DeclarationFormatter.testBlankLinesBetweenTactics root work setup application },
           { name := "comment-reflow",
             run := DeclarationFormatter.testCommentReflow root work setup application }]
       runCases "declaration-formatter" cases args

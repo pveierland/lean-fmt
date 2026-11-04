@@ -12,7 +12,8 @@ import all LeanFmt.Doc
 import Lean.Parser.Command
 
 /-! Blank lines between the items of a list: structure fields, inductive constructors, `match` or
-`cases`/`induction` alternatives, and the elements of a `do` block (`blank-lines-between-*`).
+`cases`/`induction` alternatives, the elements of a `do` block, and the tactics of a tactic block
+(`blank-lines-between-*`).
 
 This is a pass over the rendered module rather than a boundary in the layout because one of its
 questions is a layout outcome. Whether an item spans several rows is decided by the renderer, and a
@@ -23,14 +24,14 @@ comment or an attribute.
 Each formatted command is parsed again under the context Lean parsed the original under, and only a
 command that is structurally equal to its source takes part, so the two have the same lists with the
 same items in the same order. A list is a node whose children, two or more, are all items of one
-family. The pass then rewrites only the gap above each item after the first: its leading blank rows
+family, or the tactics of a tactic block, which alternate with their separators. The pass then rewrites only the gap above each item after the first: its leading blank rows
 become one or none, and everything else in it stays. What remains in a gap is the item's own comments,
 which is why a blank line goes above them and why they count toward the item.
 
 `grouped` also compares the kinds of two neighbouring items, which only `do` elements have in a
 sense worth reading: every `let` form is one kind, a reassignment another, and an expression is the
-function it calls. `compact-block-size` exempts a short `do` block from every blank line the spacing
-would add, since a block of two or three elements reads as one step.
+function it calls. `compact-block-size` exempts a short `do` or tactic block from every blank line
+the spacing would add, since a block of two or three elements reads as one step.
 
 A command that does not reparse to its source is left as rendered. Nothing here can make that
 happen, since a blank row is never a token, and the validator refuses such a command on its own
@@ -50,6 +51,7 @@ private inductive Family where
   | constructors
   | alternatives
   | doElements
+  | tactics
   deriving BEq, Inhabited
 
 private def family? : Lean.Name → Option Family
@@ -66,15 +68,17 @@ private def Family.spacing (format : FormatConfig) : Family → ElementSpacing
   | .constructors => format.blankLinesBetweenConstructors
   | .alternatives => format.blankLinesBetweenAlternatives
   | .doElements => format.blankLinesBetweenDoElements
+  | .tactics => format.blankLinesBetweenTactics
 
 /-- Whether `compact-block-size` applies: a block of statements, not a declaration's members. -/
 private def Family.block : Family → Bool
-  | .doElements => true
+  | .doElements | .tactics => true
   | _ => false
 
 /-- Whether any list family asks for something other than the layout's own `never`. -/
 def enabled (format : FormatConfig) : Bool :=
-  [Family.fields, .constructors, .alternatives, .doElements].any (·.spacing format != .never)
+  [Family.fields, .constructors, .alternatives, .doElements, .tactics].any
+    (·.spacing format != .never)
 
 private def first (stx : Lean.Syntax) : Lean.Syntax :=
   if stx.getKind == Lean.choiceKind then stx.getArg 0 else stx
@@ -137,6 +141,22 @@ private structure Walk where
   /-- The end of the last output token visited, in preorder. -/
   lastStop : Nat := 0
 
+/-- The tactics of a tactic block, as a list. Separators sit between the tactics in one node, `;` or
+an empty node for a line break, so the tactics are its even children. A bracketed block's first gap
+starts after its `{`; an indented block's after whatever token precedes it. -/
+private def tacticList? (source output : Lean.Syntax) (lastStop : Nat) : Option List := do
+  let bracketed := output.getKind == ``Lean.Parser.Tactic.tacticSeqBracketed
+  guard (bracketed || output.getKind == ``Lean.Parser.Tactic.tacticSeq1Indented)
+  let index := if bracketed then 1 else 0
+  let openerStop :=
+    if bracketed then ((output.getArg 0).getTailPos?.map (·.byteIdx)).getD lastStop else lastStop
+  let tactics (block : Lean.Syntax) : Array Lean.Syntax :=
+    let items := (block.getArg index).getArgs
+    (List.range ((items.size + 1) / 2)).toArray.map fun position => items[2 * position]!
+  let output := tactics output
+  guard (output.size ≥ 2)
+  return { family := .tactics, source := tactics source, output, openerStop }
+
 private def family?OfList (args : Array Lean.Syntax) : Option Family := do
   guard (args.size ≥ 2)
   let first ← family? args[0]!.getKind
@@ -159,7 +179,10 @@ private partial def walk (source output : Lean.Syntax) (state : Walk) : Walk :=
                 { family, source := sourceArgs, output := outputArgs,
                   openerStop := state.lastStop } }
         | none => state
-      else state
+      else
+        match tacticList? source output state.lastStop with
+        | some list => { state with lists := state.lists.push list }
+        | none => state
     let count := if kind == Lean.choiceKind then min 1 sourceArgs.size else sourceArgs.size
     (List.range count).foldl (init := state) fun state index =>
       walk (sourceArgs[index]?.getD .missing) (outputArgs[index]?.getD .missing) state

@@ -19,8 +19,10 @@ table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
   rustfmt's options of the same names. A comment on its own row above an item belongs to it.
 - `blank-lines-between-do-elements` does the same for the elements of a `do` block, and also
   takes `grouped`: `around-multiline`, plus a blank line wherever the kind of element changes.
-  `compact-block-size` exempts a nested block of at most that many elements from added blank
+  `compact-block-size` exempts a block of at most that many elements from added blank
   lines.
+- `blank-lines-between-tactics` does the same for the tactics of a tactic block, with the values
+  of `blank-lines-between-fields`; `compact-block-size` applies to tactic blocks too.
 
 ### Fixed
 

@@ -1566,6 +1566,9 @@ def catalogSchemaJson : String :=
     "        \"blank-lines-between-fields\": " ++
     elementSpacing ++
     ",\n" ++
+    "        \"blank-lines-between-tactics\": " ++
+    elementSpacing ++
+    ",\n" ++
     "        \"compact-block-size\": { \"type\": \"integer\", \"minimum\": 0 },\n" ++
     "        \"declaration-body\": { \"type\": \"string\", \"enum\": [\"next-line\", \"same-line\"] },\n" ++
     "        \"declaration-where\": { \"type\": \"string\", \"enum\": [\"same-line\", \"next-line\"] },\n" ++

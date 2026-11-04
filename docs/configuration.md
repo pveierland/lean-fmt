@@ -29,7 +29,8 @@ blank-lines-between-fields = "never" # or "preserve", "always", "around-annotate
 blank-lines-between-constructors = "never"  # same values
 blank-lines-between-alternatives = "never"  # same values; `match` and `cases`/`induction` arms
 blank-lines-between-do-elements = "never"   # same values, or "grouped"
-compact-block-size = 0               # a nested block this short gets no added blank line
+blank-lines-between-tactics = "never"       # the values of blank-lines-between-fields
+compact-block-size = 0               # a `do` or tactic block this short gets no added blank line
 import-layout = "grouped"            # or "canonical" (the organizer's header rewrite)
 import-groups = ["Lean", "Mathlib"]  # canonical layout: sub-block prefixes inside a bucket
 
@@ -137,8 +138,11 @@ at the top stay together.
   whose first component is capitalized is a function or a namespace and is grouped by its full name, so `IO.println`
   and `IO.eprintln` are two kinds. Anything else, an `if`, a `for`, a `return`, is its own kind.
 
-`compact-block-size` exempts a nested block from the blank lines its spacing would add when the block has at most that
-many elements; it keeps the blank lines the source wrote. The default `0` exempts nothing.
+`blank-lines-between-tactics` does the same for the tactics of a tactic block, indented or in braces, with the values
+of `blank-lines-between-fields`. A `·` block is one tactic, multi-row when its body is.
+
+`compact-block-size` exempts a `do` or tactic block from the blank lines its spacing would add when the block has at
+most that many elements; it keeps the blank lines the source wrote. The default `0` exempts nothing.
 
 ```lean
 def run (items : Array Nat) : IO Nat := do

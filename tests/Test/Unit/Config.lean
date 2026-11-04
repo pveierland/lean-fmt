@@ -607,6 +607,25 @@ extend-select = [\"FMT009\"]\n"
       catch _ =>
         pure true
     ensure negativeBlock "a negative compact-block-size was accepted"
+    -- `blank-lines-between-tactics`: default, parsing, identity, and `grouped` refused.
+    ensure (blockDefaults.fallback.format.blankLinesBetweenTactics == .never)
+        "blank-lines-between-tactics lost its default"
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-tactics = \"preserve\"\n"
+    let tacticsConfigured ← Discovery.run root none
+    ensure (tacticsConfigured.fallback.format.blankLinesBetweenTactics == .preserve)
+        "blank-lines-between-tactics did not parse"
+    ensure
+        (blockDefaults.fallback.format.identityString !=
+          tacticsConfigured.fallback.format.identityString)
+        "blank-lines-between-tactics did not change the identity"
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-tactics = \"grouped\"\n"
+    let groupedTactics ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure groupedTactics "blank-lines-between-tactics = \"grouped\" was accepted"
     -- `import-layout` and `import-groups`: defaults, parsing, identity movement (both are
     -- [format] keys), and misplaced/malformed errors.
     write ".lean-fmt.toml" "[format]\nline-width = 100\n"

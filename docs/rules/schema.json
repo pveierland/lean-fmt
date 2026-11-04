@@ -20,6 +20,7 @@
         "blank-lines-between-constructors": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
         "blank-lines-between-do-elements": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline", "grouped"] },
         "blank-lines-between-fields": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
+        "blank-lines-between-tactics": { "type": "string", "enum": ["never", "preserve", "always", "around-annotated", "around-multiline"] },
         "compact-block-size": { "type": "integer", "minimum": 0 },
         "declaration-body": { "type": "string", "enum": ["next-line", "same-line"] },
         "declaration-where": { "type": "string", "enum": ["same-line", "next-line"] },

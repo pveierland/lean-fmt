@@ -108,8 +108,8 @@ instance : ToString MagicTrailingComma where
     | .ignore => "ignore"
 
 /-- Where blank lines go between the items of one list: structure fields, inductive constructors,
-`match` and `cases`/`induction` alternatives, or the elements of a `do` block (the
-`blank-lines-between-*` keys).
+`match` and `cases`/`induction` alternatives, the elements of a `do` block, or the tactics of a tactic
+block (the `blank-lines-between-*` keys).
 
 Only the gap between two items changes, never the row after the list opens. An item owns the
 comments on their own rows directly above it, so a blank line goes above those comments, and they
@@ -206,7 +206,10 @@ structure FormatConfig where private mk ::
   /-- Blank lines between the elements of a `do` block (`blank-lines-between-do-elements`), default
   `never`. -/
   blankLinesBetweenDoElements : ElementSpacing := .never
-  /-- A nested block with at most this many elements gets no blank line the spacing would add
+  /-- Blank lines between the tactics of a tactic block (`blank-lines-between-tactics`), default
+  `never`. -/
+  blankLinesBetweenTactics : ElementSpacing := .never
+  /-- A `do` or tactic block with at most this many elements gets no blank line the spacing would add
   (`compact-block-size`), default 0: every block is spaced. Blank lines the source wrote are
   kept. -/
   compactBlockSize : Nat := 0
@@ -229,6 +232,7 @@ def FormatConfig.identityString (format : FormatConfig) : String :=
     blank-lines-between-fields={format.blankLinesBetweenFields}\n\
     blank-lines-between-constructors={format.blankLinesBetweenConstructors}\n\
     blank-lines-between-do-elements={format.blankLinesBetweenDoElements}\n\
+    blank-lines-between-tactics={format.blankLinesBetweenTactics}\n\
     compact-block-size={format.compactBlockSize}\n\
     blank-lines-between-alternatives={format.blankLinesBetweenAlternatives}"
 
@@ -456,6 +460,7 @@ private structure PartialConfig where
   blankLinesBetweenConstructors? : Option ElementSpacing := none
   blankLinesBetweenAlternatives? : Option ElementSpacing := none
   blankLinesBetweenDoElements? : Option ElementSpacing := none
+  blankLinesBetweenTactics? : Option ElementSpacing := none
   compactBlockSize? : Option Nat := none
   closureMode? : Option ClosureMode := none
   selectedSelectors? : Option (Array String) := none
@@ -510,6 +515,8 @@ private def PartialConfig.compose (parent child : PartialConfig) : PartialConfig
     orParent child.blankLinesBetweenAlternatives? parent.blankLinesBetweenAlternatives?
   blankLinesBetweenDoElements? :=
     orParent child.blankLinesBetweenDoElements? parent.blankLinesBetweenDoElements?
+  blankLinesBetweenTactics? :=
+    orParent child.blankLinesBetweenTactics? parent.blankLinesBetweenTactics?
   compactBlockSize? := orParent child.compactBlockSize? parent.compactBlockSize?
   selectedSelectors? := orParent child.selectedSelectors? parent.selectedSelectors?
   ignoredSelectors? := orParent child.ignoredSelectors? parent.ignoredSelectors?
@@ -562,6 +569,7 @@ private def PartialConfig.resolve (config : PartialConfig) : Except String Forma
           blankLinesBetweenConstructors := config.blankLinesBetweenConstructors?.getD .never
           blankLinesBetweenAlternatives := config.blankLinesBetweenAlternatives?.getD .never
           blankLinesBetweenDoElements := config.blankLinesBetweenDoElements?.getD .never
+          blankLinesBetweenTactics := config.blankLinesBetweenTactics?.getD .never
           compactBlockSize := config.compactBlockSize?.getD 0 }
       closureMode := config.closureMode?.getD .artifacts
       notices := config.notices
@@ -728,7 +736,7 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         "declaration-where" | "empty-structure-instance" | "magic-trailing-comma" |
         "import-layout" | "import-groups" | "blank-lines-between-fields" |
         "blank-lines-between-constructors" | "blank-lines-between-alternatives" |
-        "blank-lines-between-do-elements" | "compact-block-size" =>
+        "blank-lines-between-do-elements" | "blank-lines-between-tactics" | "compact-block-size" =>
         throw s!"configuration key '{key}' belongs in the [format] section"
       -- Same treatment as the `[format]` keys above: one spelling, one section, no ambiguity.
       | "closure" =>
@@ -842,7 +850,8 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         { config with
           importGroups? := some prefixes, origins }
     | "blank-lines-between-fields" | "blank-lines-between-constructors" |
-      "blank-lines-between-alternatives" | "blank-lines-between-do-elements" =>
+      "blank-lines-between-alternatives" | "blank-lines-between-do-elements" |
+      "blank-lines-between-tactics" =>
       let .string _ form := value | throw s!"configuration key '{key}' expects a string"
       -- `grouped` reads item kinds, and only `do` elements have kinds that differ.
       let kinded := key == "blank-lines-between-do-elements"
@@ -862,9 +871,12 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         | "blank-lines-between-alternatives" =>
           { config with
             blankLinesBetweenAlternatives? := some spacing, origins }
-        | _ =>
+        | "blank-lines-between-do-elements" =>
           { config with
             blankLinesBetweenDoElements? := some spacing, origins }
+        | _ =>
+          { config with
+            blankLinesBetweenTactics? := some spacing, origins }
     | "compact-block-size" =>
       let .integer _ size := value
         | throw "configuration key 'compact-block-size' expects an integer"
@@ -1083,6 +1095,8 @@ def FormatterConfig.describe (config : FormatterConfig) : Array (String × Strin
       winner "format.blank-lines-between-alternatives"),
     ("format.blank-lines-between-do-elements", toString config.format.blankLinesBetweenDoElements,
       winner "format.blank-lines-between-do-elements"),
+    ("format.blank-lines-between-tactics", toString config.format.blankLinesBetweenTactics,
+      winner "format.blank-lines-between-tactics"),
     ("format.compact-block-size", toString config.format.compactBlockSize,
       winner "format.compact-block-size"),
     ("lint.select", renderStrings config.selectedSelectors, winner "select"),
