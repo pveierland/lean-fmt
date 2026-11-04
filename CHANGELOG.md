@@ -8,6 +8,13 @@ notes are on the [releases page](https://github.com/jcreinhold/lean-fmt/releases
 Releases are named for the Lean toolchain they serve. Releases through 0.7.1 used semantic versions and a compatibility
 table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
 
+## Unreleased
+
+### Fixed
+
+- A constructor too long for one row keeps its name on its `|` row and breaks inside its
+  signature instead. It used to break right after the bar, leaving `|` alone on its row.
+
 ## 4.35.0 — 2026-10-13
 
 ### Upgrading

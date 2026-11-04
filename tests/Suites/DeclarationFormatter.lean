@@ -73,6 +73,12 @@ private def testWidth (root setup : System.FilePath) (application : String) (wid
     ensure (neither < left && left < right) s!"width {width}: constructors reordered"
   | _ =>
     throw <| IO.userError s!"width {width}: constructors missing"
+  -- The patterns above allow any whitespace after the bar, a newline included, so they do not see
+  -- a constructor whose name broke off its `|` row. At width 20 `| right (value : α)` does not
+  -- fit, and the `"\n| "` atom's soft line broke first and left the bar alone on its row.
+  for constructor in ["  | neither", "  | left", "  | right"] do
+    ensureEq s!"width {width}: `{constructor.trimAscii}` left its `|` row" 1
+        (countPrefix text constructor)
   match flexFind? text [.lit "def", .someWs, .lit "isEven"],
     flexFind? text [.lit "def", .someWs, .lit "isOdd"] with
   | some isEven, some isOdd =>

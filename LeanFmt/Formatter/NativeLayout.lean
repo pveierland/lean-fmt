@@ -955,6 +955,36 @@ private partial def collectCdotStarts (stx : Lean.Syntax) (starts : Array Nat :=
     children.foldl (init := starts) fun starts child => collectCdotStarts child starts
   | _ => starts
 
+/- A constructor keeps its name on its `|` row.
+
+`ctor` (`Lean/Parser/Command.lean`) is `atomic (optional docComment >> "\n| ") >>
+ppGroup (declModifiers true >> rawIdent >> optDeclSig)`. The atom's trailing space is a soft `line`,
+and it sits in front of the `ppGroup`, outside it, so it belongs to the enclosing declaration's
+broken group. A constructor that fits stays flat because the hard newline inside the atom re-groups
+what follows it; one that does not fit breaks at that `line` first and leaves `|` alone on its row,
+with the name below it at the bar's column.
+
+Joining the first terminal after the bar repairs it, and is safe by the argument `collectCdotStarts`
+makes: the row gains one token, a modifier or the name, and the `ppGroup` after it keeps its own
+breaks and nests, so a long signature still breaks inside itself below the name. A constructor's
+extent is bounded by the next `|` or the end of the declaration, not by a column, so moving its first
+token right of the bar changes no parse. -/
+private partial def collectCtorBarStarts (stx : Lean.Syntax) (starts : Array Nat := #[]) :
+    Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Command.ctor then
+        -- Children 0 and 1 are the optional docstring and the bar; the first leaf after them opens
+        -- the constructor proper, whether it is a modifier or the name.
+        match (children.toList.drop 2).findSome? fun child => (selectedLeafRanges child)[0]? with
+        | some range => if starts.contains range.start then starts else starts.push range.start
+        | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectCtorBarStarts child starts
+  | _ => starts
+
 /- `:= by` keeps the `by` on the `:=` line.
 
 `Term.byTactic` (`Term.lean:108`) is `ppAllowUngrouped >> "by " >> Tactic.tacticSeqIndentGt`, and that
@@ -4754,6 +4784,7 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   --     (break decisions, kept at LAY-INDENTED-SEQUENCES: the phantom-`column - indent` fit
   --     measurement the anchor does not answer)
   --   collectCdotStarts                           .flat              join, mathlib's cdot linter
+  --   collectCtorBarStarts                        .flat              join, `"\n| "`'s line
   --   nestedCommandStarts                         .dedented          structure-aware, Offside.lean
   --   ctorDocStarts/docBoundaries/attrDocBoundaries .elided/.flat/.dedented/.hard
   --                                                              comment handling, MathlibStyle.lean
@@ -4798,6 +4829,7 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
             (collectWhereStarts source format.lineWidth stripped).map (·.1, BoundaryLayout.hard)) ++
           (collectIndentedSequenceStarts source stripped).map (·, BoundaryLayout.hard) ++
           (collectCdotStarts stripped).map (·, BoundaryLayout.flat) ++
+          (collectCtorBarStarts stripped).map (·, BoundaryLayout.flat) ++
           nestedCommandStarts.map (·, BoundaryLayout.dedented) ++
           ctorDocStarts.map (·, BoundaryLayout.elided) ++
           docBoundaries ++
