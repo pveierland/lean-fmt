@@ -108,7 +108,8 @@ instance : ToString MagicTrailingComma where
     | .ignore => "ignore"
 
 /-- Where blank lines go between the items of one list: structure fields, inductive constructors,
-or `match` and `cases`/`induction` alternatives (the `blank-lines-between-*` keys).
+`match` and `cases`/`induction` alternatives, or the elements of a `do` block (the
+`blank-lines-between-*` keys).
 
 Only the gap between two items changes, never the row after the list opens. An item owns the
 comments on their own rows directly above it, so a blank line goes above those comments, and they
@@ -127,6 +128,10 @@ inductive ElementSpacing where
   | aroundAnnotated
   /-- A blank line above and below every item that spans several rows once laid out. -/
   | aroundMultiline
+  /-- `around-multiline`, and a blank line between two single-row items of different kinds, so a
+  run of items of one kind stays together. Only lists whose items have kinds take it: the
+  elements of a `do` block. -/
+  | grouped
   deriving BEq, Lean.ToJson, Lean.FromJson
 
 instance : ToString ElementSpacing where
@@ -136,6 +141,7 @@ instance : ToString ElementSpacing where
     | .always => "always"
     | .aroundAnnotated => "around-annotated"
     | .aroundMultiline => "around-multiline"
+    | .grouped => "grouped"
 
 /-- The spacing a configuration string names. -/
 def ElementSpacing.parse? : String → Option ElementSpacing
@@ -144,6 +150,7 @@ def ElementSpacing.parse? : String → Option ElementSpacing
   | "always" => some .always
   | "around-annotated" => some .aroundAnnotated
   | "around-multiline" => some .aroundMultiline
+  | "grouped" => some .grouped
   | _ => none
 
 /-- The `[format]` section: settings that change the **canonical bytes** a run produces.
@@ -196,6 +203,13 @@ structure FormatConfig where private mk ::
   /-- Blank lines between `match` and `cases`/`induction` alternatives
   (`blank-lines-between-alternatives`), default `never`. -/
   blankLinesBetweenAlternatives : ElementSpacing := .never
+  /-- Blank lines between the elements of a `do` block (`blank-lines-between-do-elements`), default
+  `never`. -/
+  blankLinesBetweenDoElements : ElementSpacing := .never
+  /-- A nested block with at most this many elements gets no blank line the spacing would add
+  (`compact-block-size`), default 0: every block is spaced. Blank lines the source wrote are
+  kept. -/
+  compactBlockSize : Nat := 0
   deriving BEq, Lean.ToJson, Lean.FromJson
 
 /-- The `[format]` settings as one string, for the `configuration` component of the cache
@@ -214,6 +228,8 @@ def FormatConfig.identityString (format : FormatConfig) : String :=
     import-layout={format.importLayout}{groups}\nreflow-comments={format.reflowComments}\n\
     blank-lines-between-fields={format.blankLinesBetweenFields}\n\
     blank-lines-between-constructors={format.blankLinesBetweenConstructors}\n\
+    blank-lines-between-do-elements={format.blankLinesBetweenDoElements}\n\
+    compact-block-size={format.compactBlockSize}\n\
     blank-lines-between-alternatives={format.blankLinesBetweenAlternatives}"
 
 /-- How a cache entry's closure currency is computed (`[cache] closure`).
@@ -439,6 +455,8 @@ private structure PartialConfig where
   blankLinesBetweenFields? : Option ElementSpacing := none
   blankLinesBetweenConstructors? : Option ElementSpacing := none
   blankLinesBetweenAlternatives? : Option ElementSpacing := none
+  blankLinesBetweenDoElements? : Option ElementSpacing := none
+  compactBlockSize? : Option Nat := none
   closureMode? : Option ClosureMode := none
   selectedSelectors? : Option (Array String) := none
   ignoredSelectors? : Option (Array String) := none
@@ -490,6 +508,9 @@ private def PartialConfig.compose (parent child : PartialConfig) : PartialConfig
     orParent child.blankLinesBetweenConstructors? parent.blankLinesBetweenConstructors?
   blankLinesBetweenAlternatives? :=
     orParent child.blankLinesBetweenAlternatives? parent.blankLinesBetweenAlternatives?
+  blankLinesBetweenDoElements? :=
+    orParent child.blankLinesBetweenDoElements? parent.blankLinesBetweenDoElements?
+  compactBlockSize? := orParent child.compactBlockSize? parent.compactBlockSize?
   selectedSelectors? := orParent child.selectedSelectors? parent.selectedSelectors?
   ignoredSelectors? := orParent child.ignoredSelectors? parent.ignoredSelectors?
   fixableSelectors? := orParent child.fixableSelectors? parent.fixableSelectors?
@@ -539,7 +560,9 @@ private def PartialConfig.resolve (config : PartialConfig) : Except String Forma
           importGroups := config.importGroups?.getD Imports.defaultImportGroups
           blankLinesBetweenFields := config.blankLinesBetweenFields?.getD .never
           blankLinesBetweenConstructors := config.blankLinesBetweenConstructors?.getD .never
-          blankLinesBetweenAlternatives := config.blankLinesBetweenAlternatives?.getD .never }
+          blankLinesBetweenAlternatives := config.blankLinesBetweenAlternatives?.getD .never
+          blankLinesBetweenDoElements := config.blankLinesBetweenDoElements?.getD .never
+          compactBlockSize := config.compactBlockSize?.getD 0 }
       closureMode := config.closureMode?.getD .artifacts
       notices := config.notices
       origins := config.origins
@@ -704,7 +727,8 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
       | "line-width" | "pinned-comments" | "reflow-comments" | "declaration-body" |
         "declaration-where" | "empty-structure-instance" | "magic-trailing-comma" |
         "import-layout" | "import-groups" | "blank-lines-between-fields" |
-        "blank-lines-between-constructors" | "blank-lines-between-alternatives" =>
+        "blank-lines-between-constructors" | "blank-lines-between-alternatives" |
+        "blank-lines-between-do-elements" | "compact-block-size" =>
         throw s!"configuration key '{key}' belongs in the [format] section"
       -- Same treatment as the `[format]` keys above: one spelling, one section, no ambiguity.
       | "closure" =>
@@ -818,13 +842,15 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         { config with
           importGroups? := some prefixes, origins }
     | "blank-lines-between-fields" | "blank-lines-between-constructors" |
-      "blank-lines-between-alternatives" =>
+      "blank-lines-between-alternatives" | "blank-lines-between-do-elements" =>
       let .string _ form := value | throw s!"configuration key '{key}' expects a string"
-      let some spacing := ElementSpacing.parse? form
-        |
-        throw
-            s!"configuration key '{key}' expects \"never\", \"preserve\", \"always\", \
-            \"around-annotated\", or \"around-multiline\", got \"{form}\""
+      -- `grouped` reads item kinds, and only `do` elements have kinds that differ.
+      let kinded := key == "blank-lines-between-do-elements"
+      let values :=
+        "\"never\", \"preserve\", \"always\", \"around-annotated\", " ++
+          if kinded then "\"around-multiline\", or \"grouped\"" else "or \"around-multiline\""
+      let some spacing := (ElementSpacing.parse? form).filter (kinded || · != .grouped)
+        | throw s!"configuration key '{key}' expects {values}, got \"{form}\""
       config :=
         match key with
         | "blank-lines-between-fields" =>
@@ -833,9 +859,20 @@ private def parseFile (anchor file : String) (fileMap : Lean.FileMap) (table : L
         | "blank-lines-between-constructors" =>
           { config with
             blankLinesBetweenConstructors? := some spacing, origins }
-        | _ =>
+        | "blank-lines-between-alternatives" =>
           { config with
             blankLinesBetweenAlternatives? := some spacing, origins }
+        | _ =>
+          { config with
+            blankLinesBetweenDoElements? := some spacing, origins }
+    | "compact-block-size" =>
+      let .integer _ size := value
+        | throw "configuration key 'compact-block-size' expects an integer"
+      unless 0 ≤ size do
+        throw s!"configuration key 'compact-block-size' expects a non-negative integer, got {size}"
+      config :=
+        { config with
+          compactBlockSize? := some size.toNat, origins }
     | unknown =>
       throw s!"unknown configuration key: format.{unknown}"
   for (key, value) in cacheSection do
@@ -1044,6 +1081,10 @@ def FormatterConfig.describe (config : FormatterConfig) : Array (String × Strin
     ("format.blank-lines-between-alternatives",
       toString config.format.blankLinesBetweenAlternatives,
       winner "format.blank-lines-between-alternatives"),
+    ("format.blank-lines-between-do-elements", toString config.format.blankLinesBetweenDoElements,
+      winner "format.blank-lines-between-do-elements"),
+    ("format.compact-block-size", toString config.format.compactBlockSize,
+      winner "format.compact-block-size"),
     ("lint.select", renderStrings config.selectedSelectors, winner "select"),
     ("lint.extend-select", renderStrings config.extendSelectSelectors, all "extend-select"),
     ("lint.ignore", renderStrings config.ignoredSelectors, winner "ignore"),

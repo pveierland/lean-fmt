@@ -346,6 +346,60 @@ private def testBlankLinesBetween (root work setup : System.FilePath) (applicati
       "  | .circle r => 3 * r * r\n\n  | .square s =>\n", "  | zero => rfl\n  | succ m => simp"] do
     ensureContains multiline expected "`around-multiline` misplaced a blank line"
 
+/-- `blank-lines-between-do-elements = "grouped"` and `compact-block-size`, against `preserve` and
+the default `never`.
+
+`grouped` separates two neighbouring elements when either spans several rows or their kinds differ,
+and each kind rule has a pair in the fixture that would come out differently under a nearby rule:
+`left.set` and `right.set` are one kind although their receivers differ, `discard <| …` and
+`discard (…)` are one kind although one is spelled with an operator, and the reassignment
+`total := 1` is not a `let`. The `for` body pairs a reassignment with a call, two kinds, so it is
+the block `compact-block-size` keeps tight at 3 and leaves to `grouped` at 0. The blank line the
+source writes after the first `let` is the one `never` removes and every other value keeps. -/
+private def testBlankLinesBetweenDoElements (root work setup : System.FilePath)
+    (application : String) : IO Unit := do
+  let fixture := work / "DoSpacing.lean"
+  writeFile fixture <|
+      String.intercalate "\n"
+        ["module", "", "def check (value : Bool) (label : String) : IO Unit :=",
+          "  unless value do", "    throw <| IO.userError label", "",
+          "def run (items : Array Nat) : IO Nat := do", "  let mut total := 0", "",
+          "  let cell ← IO.mkRef 0", "  let left ← IO.mkRef 0", "  let right ← IO.mkRef 0",
+          "  total := 1", "  for item in items do", "    total := total + item",
+          "    cell.set total", "  left.set 1", "  right.set 2", "  discard <| cell.get",
+          "  discard (cell.get)", "  check (total > 0) \"positive\"",
+          "  check (total < 1000) \"bounded\"", "  -- Report it.",
+          "  IO.println s!\"total {total}\"", "  return total", ""]
+  let render (label : String) (spacing : LeanFmt.Internal.ElementSpacing) (compact : Nat) :
+    IO String := do
+    let format : LeanFmt.Internal.FormatConfig :=
+      { blankLinesBetweenDoElements := spacing, compactBlockSize := compact }
+    let report ←
+      analyzeExact root application setup fixture.toString "DoSpacing.lean"
+          s!"4j{(Lean.toJson format).compress}"
+    let (_, text) ← canonical report s!"blank-lines-between-do-elements {label}"
+    return text
+  let never ← render "never" .never 0
+  ensureContains never "  let mut total := 0\n  let cell ←"
+      "`never` kept the source's blank line in a `do` block"
+  let preserve ← render "preserve" .preserve 0
+  for expected in
+    ["  let mut total := 0\n\n  let cell ←", "  let right ← IO.mkRef 0\n  total := 1",
+      "  right.set 2\n  discard <| cell.get"] do
+    ensureContains preserve expected "`preserve` did not keep exactly the source's blank lines"
+  let grouped ← render "grouped" .grouped 3
+  for expected in
+    ["  let mut total := 0\n\n  let cell ← IO.mkRef 0\n  let left ←",
+      "  let right ← IO.mkRef 0\n\n  total := 1\n\n  for item in items do",
+      "    total := total + item\n    cell.set total\n\n  left.set 1\n  right.set 2\n\n",
+      "  discard <| cell.get\n  discard (cell.get)\n\n  check (total > 0)",
+      "  check (total > 0) \"positive\"\n  check (total < 1000) \"bounded\"\n\n  -- Report it.\n",
+      "  IO.println s!\"total {total}\"\n\n  return total"] do
+    ensureContains grouped expected "`grouped` misplaced a blank line"
+  let spread ← render "grouped, every block spaced" .grouped 0
+  ensureContains spread "    total := total + item\n\n    cell.set total"
+      "`compact-block-size = 0` still kept a short block tight"
+
 /-- `reflow-comments`: a standalone `--` block whose rows overflow the margin is repacked to fit
 when the flag is on, and keeps its bytes when it is off. Empty comment lines split a block into
 paragraphs packed independently; list items, pinned directives, trailing comments, and doc
@@ -435,6 +489,9 @@ public def main (args : List String) : IO UInt32 := do
             run := DeclarationFormatter.testEmptyStructureInstance root work setup application },
           { name := "blank-lines-between",
             run := DeclarationFormatter.testBlankLinesBetween root work setup application },
+          { name := "blank-lines-between-do-elements",
+            run :=
+              DeclarationFormatter.testBlankLinesBetweenDoElements root work setup application },
           { name := "comment-reflow",
             run := DeclarationFormatter.testCommentReflow root work setup application }]
       runCases "declaration-formatter" cases args

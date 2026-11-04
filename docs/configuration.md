@@ -28,6 +28,8 @@ magic-trailing-comma = "respect"     # or "ignore"
 blank-lines-between-fields = "never" # or "preserve", "always", "around-annotated", "around-multiline"
 blank-lines-between-constructors = "never"  # same values
 blank-lines-between-alternatives = "never"  # same values; `match` and `cases`/`induction` arms
+blank-lines-between-do-elements = "never"   # same values, or "grouped"
+compact-block-size = 0               # a nested block this short gets no added blank line
 import-layout = "grouped"            # or "canonical" (the organizer's header rewrite)
 import-groups = ["Lean", "Mathlib"]  # canonical layout: sub-block prefixes inside a bucket
 
@@ -125,6 +127,36 @@ structure Config where
 
 That is `"around-multiline"`: the doc-commented field and the wrapped one are set apart, and the two single-row fields
 at the top stay together.
+
+`blank-lines-between-do-elements` does the same for the elements of a `do` block, and takes one more value:
+
+- `"grouped"`: `"around-multiline"`, and a blank line between two single-row elements of different kinds. Every `let`
+  form (`let`, `let ←`, `let … | …`, `let rec`) is one kind and every reassignment (`x := …`, `x ← …`) another. An
+  expression is the function it calls: `throw <| e` and `f $ x` call `throw` and `f`, `x |>.push y` calls `push`, and a
+  call on a local, `cell.set v`, is grouped by its method, so `left.set 1` and `right.set 2` stay together. A name
+  whose first component is capitalized is a function or a namespace and is grouped by its full name, so `IO.println`
+  and `IO.eprintln` are two kinds. Anything else, an `if`, a `for`, a `return`, is its own kind.
+
+`compact-block-size` exempts a nested block from the blank lines its spacing would add when the block has at most that
+many elements; it keeps the blank lines the source wrote. The default `0` exempts nothing.
+
+```lean
+def run (items : Array Nat) : IO Nat := do
+  let mut total := 0
+  let cell ← IO.mkRef 0
+
+  for item in items do
+    total := total + item
+    cell.set total
+
+  expect (total > 0) "positive"
+  expect (total < 1000) "bounded"
+
+  IO.println s!"total {total}"
+```
+
+That is `"grouped"` with `compact-block-size = 3`: the two `let`s and the two `expect`s stay together, the
+multi-row `for` is set apart, and its two-element body stays tight.
 
 `import-layout` chooses what `lean-fmt organize` (and the editor's organize-imports code action) rewrites the header to.
 The default `"grouped"` sorts within each blank-line/comment-delimited group and never crosses one. `"canonical"`

@@ -571,6 +571,42 @@ extend-select = [\"FMT009\"]\n"
       catch _ =>
         pure true
     ensure badSpacing "an unknown blank-lines-between-alternatives value was accepted"
+    -- `grouped` reads item kinds, so only `blank-lines-between-do-elements` takes it.
+    write ".lean-fmt.toml" "[format]\nblank-lines-between-fields = \"grouped\"\n"
+    let groupedFields ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure groupedFields "blank-lines-between-fields = \"grouped\" was accepted"
+    -- `blank-lines-between-do-elements` and `compact-block-size`: defaults, parsing, identity,
+    -- and a negative size refused.
+    write ".lean-fmt.toml" "[format]\nline-width = 100\n"
+    let blockDefaults ← Discovery.run root none
+    ensure
+        (blockDefaults.fallback.format.blankLinesBetweenDoElements == .never &&
+          blockDefaults.fallback.format.compactBlockSize == 0)
+        "blank-lines-between-do-elements or compact-block-size lost its default"
+    write ".lean-fmt.toml"
+        "[format]\nblank-lines-between-do-elements = \"grouped\"\ncompact-block-size = 3\n"
+    let blockConfigured ← Discovery.run root none
+    ensure (blockConfigured.fallback.format.blankLinesBetweenDoElements == .grouped)
+        "blank-lines-between-do-elements did not parse"
+    ensure (blockConfigured.fallback.format.compactBlockSize == 3)
+        "compact-block-size did not parse"
+    ensure
+        (blockDefaults.fallback.format.identityString !=
+          blockConfigured.fallback.format.identityString)
+        "blank-lines-between-do-elements and compact-block-size did not change the identity"
+    write ".lean-fmt.toml" "[format]\ncompact-block-size = -1\n"
+    let negativeBlock ←
+      try
+        discard <| Discovery.run root none;
+        pure false
+      catch _ =>
+        pure true
+    ensure negativeBlock "a negative compact-block-size was accepted"
     -- `import-layout` and `import-groups`: defaults, parsing, identity movement (both are
     -- [format] keys), and misplaced/malformed errors.
     write ".lean-fmt.toml" "[format]\nline-width = 100\n"

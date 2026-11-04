@@ -11,8 +11,8 @@ import all LeanFmt.Doc
 
 import Lean.Parser.Command
 
-/-! Blank lines between the items of a list: structure fields, inductive constructors, and `match`
-or `cases`/`induction` alternatives (`blank-lines-between-*`).
+/-! Blank lines between the items of a list: structure fields, inductive constructors, `match` or
+`cases`/`induction` alternatives, and the elements of a `do` block (`blank-lines-between-*`).
 
 This is a pass over the rendered module rather than a boundary in the layout because one of its
 questions is a layout outcome. Whether an item spans several rows is decided by the renderer, and a
@@ -26,6 +26,11 @@ same items in the same order. A list is a node whose children, two or more, are 
 family. The pass then rewrites only the gap above each item after the first: its leading blank rows
 become one or none, and everything else in it stays. What remains in a gap is the item's own comments,
 which is why a blank line goes above them and why they count toward the item.
+
+`grouped` also compares the kinds of two neighbouring items, which only `do` elements have in a
+sense worth reading: every `let` form is one kind, a reassignment another, and an expression is the
+function it calls. `compact-block-size` exempts a short `do` block from every blank line the spacing
+would add, since a block of two or three elements reads as one step.
 
 A command that does not reparse to its source is left as rendered. Nothing here can make that
 happen, since a blank row is never a token, and the validator refuses such a command on its own
@@ -44,30 +49,80 @@ private inductive Family where
   | fields
   | constructors
   | alternatives
+  | doElements
   deriving BEq, Inhabited
 
-private def family? (kind : Lean.Name) : Option Family :=
-  if
-      kind == ``Lean.Parser.Command.structExplicitBinder ||
-        kind == ``Lean.Parser.Command.structImplicitBinder ||
-        kind == ``Lean.Parser.Command.structInstBinder ||
-        kind == ``Lean.Parser.Command.structSimpleBinder then
+private def family? : Lean.Name → Option Family
+  | ``Lean.Parser.Command.structExplicitBinder | ``Lean.Parser.Command.structImplicitBinder |
+    ``Lean.Parser.Command.structInstBinder | ``Lean.Parser.Command.structSimpleBinder =>
     some .fields
-  else
-    if kind == ``Lean.Parser.Command.ctor then some .constructors
-    else
-      if kind == ``Lean.Parser.Term.matchAlt || kind == ``Lean.Parser.Tactic.inductionAlt then
-        some .alternatives
-      else none
+  | ``Lean.Parser.Command.ctor => some .constructors
+  | ``Lean.Parser.Term.matchAlt | ``Lean.Parser.Tactic.inductionAlt => some .alternatives
+  | ``Lean.Parser.Term.doSeqItem => some .doElements
+  | _ => none
 
 private def Family.spacing (format : FormatConfig) : Family → ElementSpacing
   | .fields => format.blankLinesBetweenFields
   | .constructors => format.blankLinesBetweenConstructors
   | .alternatives => format.blankLinesBetweenAlternatives
+  | .doElements => format.blankLinesBetweenDoElements
+
+/-- Whether `compact-block-size` applies: a block of statements, not a declaration's members. -/
+private def Family.block : Family → Bool
+  | .doElements => true
+  | _ => false
 
 /-- Whether any list family asks for something other than the layout's own `never`. -/
 def enabled (format : FormatConfig) : Bool :=
-  [Family.fields, .constructors, .alternatives].any (·.spacing format != .never)
+  [Family.fields, .constructors, .alternatives, .doElements].any (·.spacing format != .never)
+
+private def first (stx : Lean.Syntax) : Lean.Syntax :=
+  if stx.getKind == Lean.choiceKind then stx.getArg 0 else stx
+
+/-- The name a call is grouped by. A qualified name whose first component is lower case is a method
+on a local, `budget.snapshot`, and groups by the method alone, so calls on different receivers
+group; any other name is a function and groups by its full name, so `IO.println` and
+`IO.eprintln` do not. Lean's naming convention is what tells the two apart, since the syntax
+alone cannot. -/
+private def calleeName (name : Lean.Name) : String :=
+  match name.eraseMacroScopes.components with
+  | receiver@(.str _ head) :: _ :: _ =>
+    if head.front.isLower then (name.eraseMacroScopes.components.getLast?.getD receiver).toString
+    else name.eraseMacroScopes.toString
+  | _ => name.eraseMacroScopes.toString
+
+/-- What an expression calls: the function of an application, seen through `<|`, `$`, `|>`,
+parentheses and method projections, so `throw <| e` calls `throw` and `x |>.push y` calls `push`.
+Anything else is its own syntax kind. -/
+private partial def callee (term : Lean.Syntax) : String :=
+  let term := first term
+  if term.isIdent then calleeName term.getId
+  else
+    match term.getKind with
+    | ``Lean.Parser.Term.app | `«term_<|_» | `«term_$__» => callee (term.getArg 0)
+    | `«term_|>_» => callee (term.getArg 2)
+    | ``Lean.Parser.Term.paren => callee (term.getArg 1)
+    | kind@``Lean.Parser.Term.proj | kind@``Lean.Parser.Term.pipeProj =>
+      let field := term.getArg 2
+      if field.isIdent then field.getId.eraseMacroScopes.toString else kind.toString
+    | kind => kind.toString
+
+/-- The kind `grouped` compares two `do` elements by. Every `let` form is one kind and every
+reassignment another, so a run of bindings stays together and a mutation stands apart from them;
+an expression is the function it calls. -/
+private def doElementKind (item : Lean.Syntax) : String :=
+  let element := first (item.getArg 0)
+  match element.getKind with
+  | ``Lean.Parser.Term.doLet | ``Lean.Parser.Term.doLetElse | ``Lean.Parser.Term.doLetArrow |
+    ``Lean.Parser.Term.doLetRec => "let"
+  | ``Lean.Parser.Term.doReassign | ``Lean.Parser.Term.doReassignArrow => "reassign"
+  | ``Lean.Parser.Term.doExpr => "call " ++ callee (element.getArg 0)
+  | kind => kind.toString
+
+private def Family.kind (family : Family) (item : Lean.Syntax) : String :=
+  match family with
+  | .doElements => doElementKind item
+  | _ => (first item).getKind.toString
 
 /-- One list, its items paired by position, and where the token in front of its first item ends in
 the output: the first item's gap starts there. -/
@@ -185,37 +240,48 @@ private def gap? (bytes : ByteArray) (starts : Array Nat) (stop : Nat) (item : L
     (List.range (itemRow - firstRow)).any fun offset => !blankRow bytes starts (firstRow + offset)
   return { firstRow, stopRow := itemRow, commented }
 
-/-- The edits one list asks for. -/
-private def listEdits (spacing : ElementSpacing) (sourceBytes bytes : ByteArray)
-    (starts : Array Nat) (list : List) : Array Edit :=
+/-- How one sequence of items is spaced: the configured value, whether it is a block short enough
+that the value adds nothing, and the kind `grouped` compares items by. -/
+private structure Policy where
+  spacing : ElementSpacing
+  compact : Bool
+  kind : Lean.Syntax → String
+
+/-- The edits one sequence of items asks for. `openerStop` is where the token in front of the first
+item ends, when there is one: the first item's comments are in the gap after it. -/
+private def sequenceEdits (policy : Policy) (sourceBytes bytes : ByteArray) (starts : Array Nat)
+    (source output : Array Lean.Syntax) (openerStop : Option Nat) : Array Edit :=
   Id.run do
     let gaps : Array (Option Gap) :=
-      (List.range list.output.size).toArray.map fun index =>
+      (List.range output.size).toArray.map fun index =>
         let stop :=
-          if index == 0 then some list.openerStop
-          else (list.output[index - 1]!.getTailPos?).map (·.byteIdx)
-        stop.bind fun stop => gap? bytes starts stop list.output[index]!
+          if index == 0 then openerStop else (output[index - 1]!.getTailPos?).map (·.byteIdx)
+        stop.bind fun stop => gap? bytes starts stop output[index]!
     let commented (index : Nat) : Bool := (gaps[index]!).any (·.commented)
-    let annotated (index : Nat) : Bool := commented index || modified list.output[index]!
+    let annotated (index : Nat) : Bool := commented index || modified output[index]!
     let multiline (index : Nat) : Bool :=
       commented index ||
-        match list.output[index]!.getPos?, list.output[index]!.getTailPos? with
+        match output[index]!.getPos?, output[index]!.getTailPos? with
         | some start, some stop => rowOf starts start.byteIdx != rowOf starts stop.byteIdx
         | _, _ => false
     let mut edits := #[]
-    for index in [1:list.output.size] do
+    for index in [1:output.size] do
       let some gap := gaps[index]! | continue
       let authored :=
-        match list.source[index - 1]!.getTailPos?, list.source[index]!.getPos? with
+        match source[index - 1]!.getTailPos?, source[index]!.getPos? with
         | some stop, some start => blankBetween sourceBytes stop.byteIdx start.byteIdx
         | _, _ => false
-      let blank :=
-        match spacing with
-        | .never => false
-        | .preserve => authored
+      let around (property : Nat → Bool) := property (index - 1) || property index
+      let added :=
+        match policy.spacing with
+        | .never | .preserve => false
         | .always => true
-        | .aroundAnnotated => authored || annotated (index - 1) || annotated index
-        | .aroundMultiline => authored || multiline (index - 1) || multiline index
+        | .aroundAnnotated => around annotated
+        | .aroundMultiline => around multiline
+        | .grouped =>
+          around multiline || policy.kind source[index - 1]! != policy.kind source[index]!
+      -- `never` removes what the source wrote; every other value keeps it.
+      let blank := policy.spacing != .never && (authored || (added && !policy.compact))
       -- Only the blank rows at the top of the gap: one between two of the item's comments is theirs.
       let mut leading := 0
       while
@@ -267,7 +333,12 @@ def apply (format : FormatConfig) (source : String) (rendered : Rendered)
         let spacing := list.family.spacing format
         if spacing == .never then
           continue
-        for edit in listEdits spacing sourceBytes bytes starts list do
+        let policy : Policy :=
+          { spacing, kind := list.family.kind
+            compact := list.family.block && list.output.size ≤ format.compactBlockSize }
+        for edit in
+          sequenceEdits policy sourceBytes bytes starts list.source list.output
+            (some list.openerStop) do
           if mark.output.start < edit.start && edit.stop < mark.output.stop then
             edits := edits.push edit
     if edits.isEmpty then

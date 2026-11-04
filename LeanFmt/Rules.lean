@@ -1506,6 +1506,9 @@ def catalogSchemaJson : String :=
   let elementSpacing :=
     "{ \"type\": \"string\", \"enum\": [\"never\", \"preserve\", \"always\", " ++
       "\"around-annotated\", \"around-multiline\"] }"
+  let groupedSpacing :=
+    "{ \"type\": \"string\", \"enum\": [\"never\", \"preserve\", \"always\", " ++
+      "\"around-annotated\", \"around-multiline\", \"grouped\"] }"
   let deprecated :=
     "{ \"type\": \"array\", \"items\": { \"$ref\": \"#/$defs/selector\" }, " ++
       "\"deprecated\": true, \"description\": \"moved to [lint]; still accepted, see $defs/migration\" }"
@@ -1557,9 +1560,13 @@ def catalogSchemaJson : String :=
     "        \"blank-lines-between-constructors\": " ++
     elementSpacing ++
     ",\n" ++
+    "        \"blank-lines-between-do-elements\": " ++
+    groupedSpacing ++
+    ",\n" ++
     "        \"blank-lines-between-fields\": " ++
     elementSpacing ++
     ",\n" ++
+    "        \"compact-block-size\": { \"type\": \"integer\", \"minimum\": 0 },\n" ++
     "        \"declaration-body\": { \"type\": \"string\", \"enum\": [\"next-line\", \"same-line\"] },\n" ++
     "        \"declaration-where\": { \"type\": \"string\", \"enum\": [\"same-line\", \"next-line\"] },\n" ++
     "        \"empty-structure-instance\": { \"type\": \"string\", \"enum\": [\"compact\", \"spaced\"] },\n" ++
