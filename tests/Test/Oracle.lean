@@ -118,16 +118,14 @@ private def validateSourceMap (response : Lean.Json) (source output : String) :
   for item in raw do
     let (ss, se) ←
       rangePair
-          (←
-            do
+          (← do
               let some v :=
                 jsonAt? item [.field "source"] | reject "source-map" "unit has no source"
               pure v)
           "unit source"
     let (os, oe) ←
       rangePair
-          (←
-            do
+          (← do
               let some v :=
                 jsonAt? item [.field "output"] | reject "source-map" "unit has no output"
               pure v)

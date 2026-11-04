@@ -1131,8 +1131,7 @@ private def emitReport (outputFile? : Option String) (contents : String) : IO Un
   | some path => writeReportFile path contents
   | none =>
     try
-      IO.print contents;
-      (← IO.getStdout).flush
+      IO.print contents; (← IO.getStdout).flush
     catch _ =>
       pure ()
 
@@ -1422,8 +1421,7 @@ private unsafe def runStreamCommand (mode : RunMode) (command : FileCommand) (fi
   -- message is fixed, so it must not be the runtime's chance phrasing.
   let bytes ← (← IO.getStdin).readBinToEnd
   let some raw := String.fromUTF8? bytes |
-    IO.eprintln "lean-fmt: stdin is not valid UTF-8";
-    return 2
+    IO.eprintln "lean-fmt: stdin is not valid UTF-8"; return 2
   -- Ranges index the normalized source, the one coordinate system every offset in this
   -- product uses.
   let (normalized, _) := LosslessSource.normalize raw
@@ -1436,8 +1434,7 @@ private unsafe def runStreamCommand (mode : RunMode) (command : FileCommand) (fi
       | .ok range =>
         pure (some range)
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
   let report ←
     stream
         { mode
@@ -1535,8 +1532,7 @@ private def generationArgs (mode : RunMode) (args : List String) : Array String 
       | "--poll-interval" :: _ :: rest =>
         remaining := rest
       | argument :: rest =>
-        out := out.push argument;
-        remaining := rest
+        out := out.push argument; remaining := rest
     return out
 
 private unsafe def runFileCommand (mode : RunMode) (args : List String) : IO UInt32 := do
@@ -1545,8 +1541,7 @@ private unsafe def runFileCommand (mode : RunMode) (args : List String) : IO UIn
     | .ok pair =>
       pure pair
     | .error message =>
-      IO.eprintln message;
-      return 2
+      IO.eprintln message; return 2
   if let .error message := validateStdin mode command then
     IO.eprintln message
     return 2
@@ -1626,8 +1621,7 @@ private unsafe def runFileCommand (mode : RunMode) (args : List String) : IO UIn
       | some comparison =>
         match ← resolveChanged command comparison with
         | .error message =>
-          IO.eprintln s!"lean-fmt: {message}";
-          return 2
+          IO.eprintln s!"lean-fmt: {message}"; return 2
         | .ok none =>
           return 0
         | .ok (some resolved) =>
@@ -1646,8 +1640,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
     return result
   match args with
   | "--help" :: _ =>
-    printHelp (← IO.getStdout) CliHelp.overviewHelp;
-    return 0
+    printHelp (← IO.getStdout) CliHelp.overviewHelp; return 0
   -- Anyone installing a prebuilt binary asks it what it is before they ask it anything else, and
   -- an issue report is worth less without the answer. The language server already reports this
   -- string; the boundary suite pins it against the lakefile.
@@ -1683,8 +1676,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok command =>
         pure command
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     try
       let report ← organize command.request
       renderReport command.outputFormat report
@@ -1705,8 +1697,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok options =>
         pure options
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     try
       LanguageServer.serveLanguageServer options
     catch error =>
@@ -1718,8 +1709,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok format =>
         pure format
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     renderRules format
     return 0
   | "explain" :: rest =>
@@ -1728,11 +1718,9 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
     | [code], json =>
       renderExplain (if json then .json else .text) code
     | [], _ =>
-      IO.eprintln "usage: lean-fmt explain RULE [--json]";
-      return 2
+      IO.eprintln "usage: lean-fmt explain RULE [--json]"; return 2
     | _, _ =>
-      IO.eprintln "explain takes exactly one rule code";
-      return 2
+      IO.eprintln "explain takes exactly one rule code"; return 2
   | "docs" :: rest =>
     let rec loop (remaining : List String) (root : FilePath) (check : Bool) : IO UInt32 := do
       match remaining with
@@ -1743,8 +1731,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | "--root" :: dir :: more =>
         loop more dir check
       | option :: _ =>
-        IO.eprintln s!"unknown docs option: {option}";
-        return 2
+        IO.eprintln s!"unknown docs option: {option}"; return 2
     loop rest "." false
   | "clean" :: rest =>
     let command ←
@@ -1752,8 +1739,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok command =>
         pure command
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     try
       renderClean command.outputFormat (← clean command.root)
       return 0
@@ -1766,8 +1752,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok parsed =>
         pure parsed
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     try
       renderConfigShow format (← describeConfig root config? target)
       return 0
@@ -1780,8 +1765,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok format =>
         pure format
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     renderCompilerSetup format
     return 0
   | "compiler" :: "build" :: rest =>
@@ -1790,8 +1774,7 @@ unsafe def runCli (arguments : List String) : IO UInt32 := do
       | .ok command =>
         pure command
       | .error message =>
-        IO.eprintln message;
-        return 2
+        IO.eprintln message; return 2
     if command.outputFormat == .json then
       IO.eprintln "compiler build prints Lake's own progress; --json does not apply"
       return 2

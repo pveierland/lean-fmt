@@ -84,7 +84,8 @@ and a third kind of configuration fails both, which is why the exemption does no
 `[lint]`'s selection and `extend-safe-fixes` fail both: they are not in the format identity, and
 they are exactly the "rule reads its own enablement" mechanism that once made `check` and `format`
 report different findings for the same unchanged file. See `docs/adding-a-rule.md`. -/
-structure SourceFacts where private mk ::
+structure SourceFacts where
+  private mk ::
   normalized : String
   bytes : ByteArray
   lineWidth : Nat
@@ -97,7 +98,8 @@ def SourceFacts.of (normalized : String) (lineWidth : Nat) : SourceFacts :=
 /-- What a `syntax`-tier rule may read: the exact frontend's lossless projection, and the
 source it indexes. A syntax rule needs both — `LosslessSource` is offsets into the normalized
 string — so this nests `SourceFacts` rather than restating it. -/
-structure SyntaxFacts where private mk ::
+structure SyntaxFacts where
+  private mk ::
   source : SourceFacts
   projection : LosslessSource
 
@@ -115,7 +117,8 @@ system and suppression are the projection's — so this nests `SyntaxFacts` as `
 `SourceFacts`. `diagnostics` are the immutable facts (`ArtifactModel.Diagnostic`) the surfaced
 rules FMT012–FMT015 key on; a rule never sees an `Environment`, a `Position`, or a `FileMap`, only
 this data. -/
-structure SemanticFacts where private mk ::
+structure SemanticFacts where
+  private mk ::
   «syntax» : SyntaxFacts
   diagnostics : Array Diagnostic
   /-- The owned deprecation-occurrence facts, empty unless the run demanded

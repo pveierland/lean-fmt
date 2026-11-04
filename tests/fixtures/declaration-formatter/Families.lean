@@ -30,6 +30,10 @@ structure Packet (α : Type u) where
   count : Nat := 0
   deriving Repr
 
+structure Sealed where
+  private mk ::
+  value : Nat
+
 structure ExtendedPacket (α : Type u) extends Packet α where
   third : α
   description : String := "extended packet"

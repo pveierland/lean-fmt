@@ -380,8 +380,7 @@ private def testAcceptance (ctx : Ctx) : IO Unit := do
         #["format", "--check", "--root", proj.toString, "--json", "--no-cache", "--preview",
           "--unsafe-fixes", "--select", "FMT012", mixedFmt.toString]
         1 "acc format"
-  match
-    (jsonAt? formatReport [.field "files", .index 0, .field "formatted"]).bind
+  match (jsonAt? formatReport [.field "files", .index 0, .field "formatted"]).bind
       (·.getStr?.toOption) with
   | some out =>
     ensure (out.contains "oldName" && !(out.contains "def useOld : Nat := newName"))

@@ -328,8 +328,7 @@ private partial def choiceDisagreement? (source : String) (stx : Lean.Syntax) :
         | none => none
         | some first =>
           let expected := choiceSpelling source first
-          match
-            (children.extract 1 children.size).findIdx?
+          match (children.extract 1 children.size).findIdx?
               (fun alternative => choiceSpelling source alternative != expected) with
           | some offset =>
             match children[offset + 1]? with
@@ -985,6 +984,113 @@ private partial def collectCtorBarStarts (stx : Lean.Syntax) (starts : Array Nat
     children.foldl (init := starts) fun starts child => collectCtorBarStarts child starts
   | _ => starts
 
+/- `←` keeps its operand on its own row.
+
+`nestedAction` (`Lean/Parser/Do.lean`) is `leftArrow >> doElemParser`, and `leftArrow` is
+`unicodeSymbol "← " "<- "`, whose trailing space the derived formatter spells as a soft `line`. An
+action that does not fit therefore breaks right after the arrow, before anything inside the operand
+gets the chance, and strands the arrow at the end of its row: `(←` above an operand two nests deeper,
+or `match`, `←`, and the discriminant on three rows. The arrow is a prefix of its operand, not an
+operator between two of them, so no layout puts a break there on purpose.
+
+Joining only the operand's *first* terminal is always safe, by the argument `collectCdotStarts`
+makes: the joined row gains the arrow's two columns plus one token, and everything after that token
+keeps its own breaks and nests, so a long operand still breaks inside itself below the arrow. Both
+spellings of the arrow are one `nestedAction`, so `<-` is matched too. -/
+private partial def collectNestedActionStarts (stx : Lean.Syntax) (starts : Array Nat := #[]) :
+    Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Term.nestedAction then
+        match children[1]? >>= fun operand => (selectedLeafRanges operand)[0]? with
+        | some range => if starts.contains range.start then starts else starts.push range.start
+        | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectNestedActionStarts child starts
+  | _ => starts
+
+/- `match` keeps its first discriminant on its own row.
+
+`«match»` (`Lean/Parser/Term.lean`) and `doMatch` (`Lean/Parser/Do.lean`) both open
+with the atom `"match "`, the same trailing-space soft `line` as `leftArrow`'s. A discriminant that
+does not fit breaks there first and leaves `match` alone on its row, against `collections.match`,
+which keeps `match discriminant with` together when possible. The same first-terminal join repairs
+it, and is safe for the same reason: the row gains one token, and the discriminant breaks inside
+itself from there. What follows `match` may be a `(generalizing := …)` or motive rather than a
+discriminant; it is joined alike, being equally the first thing the keyword introduces. -/
+private partial def collectMatchKeywordStarts (stx : Lean.Syntax) (starts : Array Nat := #[]) :
+    Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Term.match || kind == ``Lean.Parser.Term.doMatch then
+        match (selectedLeafRanges stx)[1]? with
+        | some range => if starts.contains range.start then starts else starts.push range.start
+        | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectMatchKeywordStarts child starts
+  | _ => starts
+
+/- A `do` item the source ended with `;` keeps the next item on its row.
+
+`doSeqItem` (`Lean/Parser/Do.lean`) is `ppLine >> doElemParser >> optional "; "`, so every item
+opens with a `line` whether or not the one before it was terminated by a written `;`. Those lines
+break whenever the sequence does, which turns `cell.set next; return .ok ()` into
+`cell.set next;` and `return .ok ()` on two rows: the separator the author wrote to share a row is
+kept, and the row it was written to share is not. The `;` is a token, so it cannot be dropped; the
+row is the only thing left to restore.
+
+The join lands on the next item's first terminal and nowhere else, so the second item's own breaks
+and nests are untouched. Its column moves right of the sequence's reference column, which
+`many1Indent`'s `checkColGe` accepts, and a bracketed sequence (`doSeqBracketed`) has no reference
+column at all. A trailing `;` before the closing brace or the end of the sequence has no next item
+and joins nothing. -/
+private partial def collectDoSemicolonStarts (stx : Lean.Syntax) (starts : Array Nat := #[]) :
+    Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Term.doSeqIndent || kind == ``Lean.Parser.Term.doSeqBracketed then
+        let items := (children.find? (·.isOfKind Lean.nullKind)).map (·.getArgs) |>.getD #[]
+        (List.range items.size).foldl (init := starts) fun starts index =>
+          let terminated := items[index]!.getArg 1 |>.matchesNull 0 |> not
+          match items[index + 1]? >>= fun next => (selectedLeafRanges next)[0]? with
+          | some range =>
+            if terminated && !starts.contains range.start then starts.push range.start else starts
+          | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectDoSemicolonStarts child starts
+  | _ => starts
+
+/- A structure's constructor declaration opens its own row.
+
+`«structure»` (`Lean/Parser/Command.lean`) spells `" where "` and then `optional structCtor`
+with no line between them, while every field in `structFields` opens with `ppLine`. So the native
+document puts `private mk ::` on the header row and only the fields below it: `structure State where
+private mk ::`. Lean's printer never meets this for a structure the elaborator built, which has no
+written constructor, so nothing upstream notices.
+
+The constructor already sits inside `structCtor`'s own `ppIndent`, so a hard break before its first
+terminal lands at the fields' indent, which is where the fields' `checkColGe` measures from. `hard`
+cannot lengthen a line and needs no accompanying flatten. -/
+private partial def collectStructCtorStarts (stx : Lean.Syntax) (starts : Array Nat := #[]) :
+    Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Command.structCtor then
+        match (selectedLeafRanges stx)[0]? with
+        | some range => if starts.contains range.start then starts else starts.push range.start
+        | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectStructCtorStarts child starts
+  | _ => starts
+
 /- `:= by` keeps the `by` on the `:=` line.
 
 `Term.byTactic` (`Term.lean:108`) is `ppAllowUngrouped >> "by " >> Tactic.tacticSeqIndentGt`, and that
@@ -1171,8 +1277,7 @@ private partial def collectWhereStarts (source : String) (width : Nat) (stx : Le
     -- declaration at all keeps whatever header its ancestors set.
     let headerStart :=
       if kind == ``Lean.Parser.Command.declaration then
-        match
-          children.findSome? fun child =>
+        match children.findSome? fun child =>
             if child.isOfKind ``Lean.Parser.Command.declModifiers then none
             else (selectedLeafRanges child)[0]?.map (·.start) with
         | some start => start
@@ -1320,8 +1425,7 @@ private def guardedPipe? (stx : Lean.Syntax) : Option Lean.Syntax :=
     match children.find? (· matches .atom _ "|") with
     | some pipe => some pipe
     | none =>
-      match
-        children.find? fun child =>
+      match children.find? fun child =>
           child.isOfKind ``Lean.Parser.Term.doPatDecl ||
             child.isOfKind ``Lean.Parser.Term.doIdDecl with
       | some decl =>
@@ -2963,8 +3067,7 @@ private def finishConstraint (result : Transformed) (carrier? : Option Constrain
   | none =>
     return result
   | some span =>
-    match
-      state.constraints.findIdx? fun (constraint, expected) =>
+    match state.constraints.findIdx? fun (constraint, expected) =>
         expected == span && constraint.carrier == carrier with
     | some index =>
       if state.appliedConstraints.contains index then
@@ -3491,8 +3594,7 @@ private def constrainBoundary (format : Std.Format) :
             -- node nested the command or spelled `ppDedent` and did not.
             dedents :=
               if layout matches .dedented then
-                match
-                  state.nestedCommands.find? fun span : TokenSpan =>
+                match state.nestedCommands.find? fun span : TokenSpan =>
                     span.start == state.terminalIndex with
                 | some span => state.dedents.push (span, dedentColumns state)
                 | none => state.dedents
@@ -3744,8 +3846,7 @@ private def transformOrdinaryText (value : String) :
               tokenLeaves := state.metrics.tokenLeaves + 1
               normalizedTokens := state.metrics.normalizedTokens + if normalized then 1 else 0 } }
     finishNode
-        (←
-          placeDroppedIslandsAfter
+        (← placeDroppedIslandsAfter
               { format :=
                   .append boundary (.append (.text terminal.sourceSpelling) (.text trailing))
                 span? := some ⟨state.terminalIndex, state.terminalIndex + 1⟩
@@ -4785,6 +4886,10 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   --     measurement the anchor does not answer)
   --   collectCdotStarts                           .flat              join, mathlib's cdot linter
   --   collectCtorBarStarts                        .flat              join, `"\n| "`'s line
+  --   collectNestedActionStarts                   .flat              join, `leftArrow`'s line
+  --   collectMatchKeywordStarts                   .flat              join, `"match "`'s line
+  --   collectDoSemicolonStarts                    .flat              join, `doSeqItem`'s line
+  --   collectStructCtorStarts                     .hard              break, `«structure»`'s missing line
   --   nestedCommandStarts                         .dedented          structure-aware, Offside.lean
   --   ctorDocStarts/docBoundaries/attrDocBoundaries .elided/.flat/.dedented/.hard
   --                                                              comment handling, MathlibStyle.lean
@@ -4830,6 +4935,10 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
           (collectIndentedSequenceStarts source stripped).map (·, BoundaryLayout.hard) ++
           (collectCdotStarts stripped).map (·, BoundaryLayout.flat) ++
           (collectCtorBarStarts stripped).map (·, BoundaryLayout.flat) ++
+          (collectNestedActionStarts stripped).map (·, BoundaryLayout.flat) ++
+          (collectMatchKeywordStarts stripped).map (·, BoundaryLayout.flat) ++
+          (collectDoSemicolonStarts stripped).map (·, BoundaryLayout.flat) ++
+          (collectStructCtorStarts stripped).map (·, BoundaryLayout.hard) ++
           nestedCommandStarts.map (·, BoundaryLayout.dedented) ++
           ctorDocStarts.map (·, BoundaryLayout.elided) ++
           docBoundaries ++
@@ -4860,10 +4969,9 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   let (formattedSyntax, islands) := protectSourceData categories source commentFree
   -- The closing brace's own row decision (`collectStructInstCloseBraces`): its ranges join
   -- `explodedRanges` only here, after the pin filter has run.
-  match
-    CommandPlan.resolve source terminals comments blockDangling islands constraints boundaryStarts
-      joined nestedCommandRanges (explodedRanges ++ closeBraceRanges) headSpans baseIndent
-      structInstAnchors with
+  match CommandPlan.resolve source terminals comments blockDangling islands constraints
+      boundaryStarts joined nestedCommandRanges (explodedRanges ++ closeBraceRanges) headSpans
+      baseIndent structInstAnchors with
   | .error failure =>
     return .error failure
   | .ok plan =>

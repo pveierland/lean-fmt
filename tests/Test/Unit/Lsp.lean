@@ -67,8 +67,7 @@ private def testLspPositions : IO Unit := do
     Application.PositionIndex.ofSource "A.lean" source
       #[{ code := "TEST", severity := .warning, message := "probe",
           range := { start := 24, stop := 25 }, fix? := none }]
-  match
-    (Application.PositionIndex.position? codepointIndex "A.lean" 24 :
+  match (Application.PositionIndex.position? codepointIndex "A.lean" 24 :
       Option Application.Position) with
   | some reported =>
     -- Three distinct numbers for one offset: codepoint column 19 (what we report), UTF-16 column 20

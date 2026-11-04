@@ -350,8 +350,7 @@ private def testOutputFiles (ctx : Ctx) : IO Unit := do
             "tests/fixtures/reporting/sarif-schema-2.1.0.json", outSarif.toString]
           (cwd? := some ctx.root)
   ensureEq "  ... and the exit code is unchanged" 1
-      (←
-        fmtCode ctx
+      (← fmtCode ctx
             #["check", findings, "--output-file", (ctx.work / "out2.sarif").toString,
               "--output-format", "sarif"])
   -- Atomic replacement: the temporary must not survive, and a previous report must not be

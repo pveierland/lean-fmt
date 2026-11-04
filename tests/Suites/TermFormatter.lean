@@ -59,8 +59,7 @@ private def testWidth20 (root setup : System.FilePath) (application : String) : 
   ensureContains text "  consumeFive alpha\n    beta gamma delta\n    epsilon" "width 20"
   ensureContains text "consumeFive\n    (alpha ⊕custom\n      beta)" "width 20"
   ensureContains text "  if condition then\n    yes\n  else no" "width 20"
-  match
-    (["| 0, _ => alpha", "| _, 1 => beta"].map fun needle =>
+  match (["| 0, _ => alpha", "| _, 1 => beta"].map fun needle =>
       (text.splitOn needle).head!.utf8ByteSize) with
   | [first, second] =>
     ensure

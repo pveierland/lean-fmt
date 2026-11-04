@@ -99,6 +99,10 @@ private def testWidth (root setup : System.FilePath) (application : String) (wid
   -- column a claim about `sepByIndent`'s `align` rather than about `where` clauses generally.
   ensureEq s!"width {width}: the lone `where` binding left its own row" 1
       (countPrefix text "where localValue :")
+  -- `«structure»` spells no line between `where` and `structCtor`, so the native document puts the
+  -- constructor on the header row at every width; it belongs on its own row at the fields' column.
+  ensureEq s!"width {width}: the structure constructor left its own row" 1
+      (countPrefix text "  private mk ::")
   ensureNoTrailingWhitespace s!"width {width}" text
 
 /-- The narrow-width shapes: the opaque signature and the extending structure break where the old

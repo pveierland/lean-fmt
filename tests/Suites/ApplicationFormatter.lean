@@ -226,8 +226,7 @@ throwing_command\n\nthrowing_command\n"
   ensureJsonAt report [.field "written"] (Lean.toJson (0 : Nat)) "refusal"
   let failures := (jsonAt? report [.field "infrastructureFailures"]).bind (·.getArr?.toOption)
   ensure ((failures.map (·.size)).getD 0 > 0) "refusal reported no infrastructure failures"
-  match
-    (jsonAt? report [.field "files", .index 0]).bind fun file =>
+  match (jsonAt? report [.field "files", .index 0]).bind fun file =>
       (file.getObjValAs? String "status").toOption with
   | some "infrastructure-failure" =>
     pure ()

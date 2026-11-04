@@ -264,7 +264,8 @@ sources, and the configuration governing each directory that declared one.
 
 `configs` is keyed by the **root-relative directory** the config governs, so resolving a file is a
 prefix search over an in-memory array — never a filesystem ascent per file. -/
-structure Discovery where private mk ::
+structure Discovery where
+  private mk ::
   root : FilePath
   /-- Root-relative paths of candidate `.lean` sources, in walk order. -/
   sources : Array String

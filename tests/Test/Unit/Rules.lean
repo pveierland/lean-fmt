@@ -343,8 +343,7 @@ private def testApplicability : IO Unit := do
   ensure (projected.size == 1 && (projected[0]!.fix?.map (·.applicability)) == some .unsafe)
       "the findings projection did not demote a safe fix"
   -- Conflict provenance names both rules, not array indices.
-  match
-    preparePatch "abc"
+  match preparePatch "abc"
       #[findingWithEdit { start := 0, stop := 2 } "x" .safe "RULE_A",
         findingWithEdit { start := 1, stop := 3 } "y" .safe "RULE_B"] with
   | .error error =>

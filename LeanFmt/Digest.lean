@@ -21,7 +21,8 @@ namespace LeanFmt
 
 /-- A lowercase SHA-256 digest. The private constructor keeps malformed or truncated digests out of
 identities. -/
-structure Digest where private mk ::
+structure Digest where
+  private mk ::
   hex : String
   deriving BEq, DecidableEq, Repr
 

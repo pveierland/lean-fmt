@@ -135,7 +135,8 @@ private inductive MemberFact where
   | unreadable
   deriving Inhabited
 
-structure ResultCache where private mk ::
+structure ResultCache where
+  private mk ::
   root : System.FilePath
   toolchain : String
   environment : Digest

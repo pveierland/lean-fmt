@@ -186,7 +186,8 @@ every field here is folded into
 never be served under another. `[lint]` settings are the complement — they project over an
 unchanged canonical result and must stay out of identity, as `CLAUDE.md` requires of rule
 selection. -/
-structure FormatConfig where private mk ::
+structure FormatConfig where
+  private mk ::
   /-- The render margin (`line-width`), default 100.
 
   Promoting this from the compile-time `Application.canonicalWidth` required a new cache-identity
@@ -282,7 +283,8 @@ inductive ClosureMode where
   | «interface»
   deriving BEq, Inhabited, Repr
 
-structure FormatterConfig where private mk ::
+structure FormatterConfig where
+  private mk ::
   includePatterns : Array PathPattern
   excludePatterns : Array PathPattern
   /-- `force-exclude`: apply the ignore sources and `exclude` to **explicitly named**
@@ -333,7 +335,8 @@ structure FormatterConfig where private mk ::
   reachable. -/
   preview : Bool
 
-structure RulePlan where private mk ::
+structure RulePlan where
+  private mk ::
   selected : Array String
   /-- Codes whose fixes `fix` may apply — the fix-selection axis resolved over the
   selected set (`fixable`/`unfixable`/`extend-fixable`). A selected code

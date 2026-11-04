@@ -537,8 +537,7 @@ private def testDownstream (ctx : Ctx) : IO Unit := do
         some downstream) (env := lakeEnv) (timeoutMs := some 1800000)
   let artifact ←
     parseJson
-        (←
-          IO.FS.readFile
+        (← IO.FS.readFile
               (downstream / ".lake" / "build" / "lean-fmt-artifacts" / "Downstream.json"))
         "downstream artifact"
   ensureJsonAt artifact [.field "mainModule"] (Lean.toJson "Downstream") "downstream artifact"

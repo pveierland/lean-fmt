@@ -28,6 +28,13 @@ table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
   between two single-row commands of different kinds, so a run of one-line `abbrev`s or `open`s
   stays together.
 
+### Changed
+
+- Four line breaks Lean's grammar offers where no layout wants one no longer fire. `←` stays with its operand, so a
+  long action is no longer spelled `(←` above it; `match` stays with its first discriminant; a `do` item ended by a
+  written `;` keeps the next item on its row; and a structure's written constructor (`private mk ::`) opens its own row
+  instead of joining the `where` row. Files containing these shapes format differently.
+
 ### Fixed
 
 - The configuration schema accepts `empty-structure-instance`, which it rejected before. Its

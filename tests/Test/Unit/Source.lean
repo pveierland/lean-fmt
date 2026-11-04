@@ -154,16 +154,14 @@ private def testRangeSelection : IO Unit := do
   -- A request inside unit 0 formats unit 0 and nothing else: its output ends in a newline, so the
   -- extension does not fire, and units 1-2 keep their source bytes verbatim.
   let some first := run 2 4 |
-    ensure false "a request inside unit 0 selected no unit";
-    return
+    ensure false "a request inside unit 0 selected no unit"; return
   ensure (first.actual == ⟨0, 8⟩) s!"unit 0 request reported actual range {repr first.actual}"
   ensure (first.text == "aaaaaaa\nBBBBBBB\nCCCCCCC\n")
       s!"unit 0 splice did not keep the later units' source bytes: {repr first.text}"
   -- A request inside unit 1 must drag unit 2 in: unit 1's output ends in a space, so its layout was
   -- decided by what follows it, and reporting `[8,16)` would be a promise the bytes do not keep.
   let some second := run 9 10 |
-    ensure false "a request inside unit 1 selected no unit";
-    return
+    ensure false "a request inside unit 1 selected no unit"; return
   ensure (second.actual == ⟨8, 24⟩)
       s!"the forward extension did not fire on a unit ending mid-line: {repr second.actual}"
   ensure (second.text == "AAAAAAA\nbbbbbb ccccccc\n")
@@ -171,25 +169,21 @@ private def testRangeSelection : IO Unit := do
   -- Full range reproduces the whole render byte for byte — whole-file / full-range equivalence,
   -- stated where the splice can be held to it.
   let some whole := run 0 24 |
-    ensure false "the full range selected no unit";
-    return
+    ensure false "the full range selected no unit"; return
   ensure (whole.text == rendered) s!"full range did not reproduce the render: {repr whole.text}"
   ensure (whole.actual == ⟨0, 24⟩) s!"full range reported {repr whole.actual}"
   -- An empty request is a cursor position: it selects the unit holding that offset. On a boundary it
   -- takes the unit that *starts* there, not the one that ends there.
   let some empty := run 3 3 |
-    ensure false "an empty request selected no unit";
-    return
+    ensure false "an empty request selected no unit"; return
   ensure (empty.actual == ⟨0, 8⟩) s!"an empty request in unit 0 reported {repr empty.actual}"
   let some boundary := run 8 8 |
-    ensure false "a boundary request selected no unit";
-    return
+    ensure false "a boundary request selected no unit"; return
   ensure (boundary.actual == ⟨8, 24⟩)
       s!"an empty request on the 0/1 boundary did not take the unit starting there: {repr boundary.actual}"
   -- At end of file there is no unit starting there, so the last one answers.
   let some eof := run 24 24 |
-    ensure false "an end-of-file request selected no unit";
-    return
+    ensure false "an end-of-file request selected no unit"; return
   ensure (eof.actual == ⟨16, 24⟩) s!"an end-of-file request reported {repr eof.actual}"
   -- Reported output ranges must index the text the caller was handed, not the pre-splice render.
   ensure (second.marks.size == 2) s!"the 1-2 request reported {second.marks.size} units"

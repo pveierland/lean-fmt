@@ -66,8 +66,7 @@ private def testExamples (ctx : Ctx) : IO Unit := do
   let rulesJson ←
     expectExit 0 "rules --json" ctx.application #["rules", "--json"] (cwd? := some ctx.root)
   let some rules :=
-    ((←
-        parseJson rulesJson.stdout
+    ((← parseJson rulesJson.stdout
             "rules").getArr?.toOption) | throw <| IO.userError "rules --json is not an array"
   let sorted :=
     rules.qsort fun a b =>

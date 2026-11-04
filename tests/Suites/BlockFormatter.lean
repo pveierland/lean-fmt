@@ -21,7 +21,11 @@ private def requiredStrings : Array String :=
     "long guarded bind", "total ←", "have positive", "for value", "values do", "continue", "break",
     "while", "total <", "let rec count", "else if", "value.isNone then", "unless flag do", "repeat",
     "until flag", "let value ←", "{\n", "1;", "try", "catch _ =>", "catch\n", "finally",
-    "dbg_trace", "assert!", "debug_assert!", "Id.run", "where"]
+    "dbg_trace", "assert!", "debug_assert!", "Id.run", "where",
+    -- Each of these is a soft `line` the grammar puts somewhere no layout breaks on purpose, so the
+    -- spelling must hold at every width, the narrowest being where the line used to fire: after a
+    -- written `;`, after `←`, and after `match`.
+    "1; cell.set 2", "(← pure", "match ← pure"]
 
 namespace BlockFormatter
 
