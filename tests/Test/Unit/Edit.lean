@@ -171,8 +171,7 @@ private def testFixAllAdversarial : IO Unit := do
             .safe "MULTI"]
   ensure (multi.formatted == "XbYd") "a multi-edit fix did not apply as one transaction"
   ensure ((← requireRevert multi) == "abcd") "a multi-edit fix did not revert exactly"
-  match
-    preparePatch "abcd"
+  match preparePatch "abcd"
       #[findingWithEdits
           #[{ range := { start := 0, stop := 2 }, replacement := "X" },
             { range := { start := 1, stop := 3 }, replacement := "Y" }]
@@ -189,8 +188,7 @@ private def testFixAllAdversarial : IO Unit := do
   -- intersect), so the composition is exercised here at `preparePatch`, its owning layer. (There is no
   -- source-tier fixable rule — trailing whitespace and the final
   -- newline are the formatter's layout, not lint rules.)
-  match
-    preparePatch "abc"
+  match preparePatch "abc"
       #[findingWithEdit { start := 0, stop := 2 } "" .safe "FMT011",
         findingWithEdit { start := 1, stop := 3 } "" .safe "FMT003"] with
   | .error (.conflict left right _ _) =>

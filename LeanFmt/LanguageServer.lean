@@ -180,7 +180,8 @@ partial def readFrame (stream : IO.FS.Stream) : IO Frame := do
 
 /-- One `Std.Mutex`, so a notification written while a response is being written cannot interleave
 with it. -/
-structure Sink where private mk ::
+structure Sink where
+  private mk ::
   private stream : Std.Mutex IO.FS.Stream
 
 def Sink.of (stream : IO.FS.Stream) : BaseIO Sink :=
@@ -311,7 +312,8 @@ abbrev Rejection :=
 
 /-! ## Session -/
 
-structure Session where private mk ::
+structure Session where
+  private mk ::
   /-- The options the process started with. `root` is read from here and only from here: one Lake
   workspace is fixed when the session opens, and a client that asks to move it is told to
   restart. -/
@@ -1078,9 +1080,7 @@ private def handleCodeAction (session : Session) (id : RequestID) (params : Json
                 (codeAction "lean-fmt: fix all" "source.fixAll"
                   (workspaceEdit document #[wholeEdit document output]))
     if wants "source.organizeImports" then
-      match
-        ←
-          (try
+      match ← (try
               session.run.organizeSnapshot target (cancel? := some cancel)
             catch error =>
               if Application.cancelled? error then
@@ -1132,17 +1132,13 @@ def dispatch (session : Session) (json : Json) : IO Bool := do
     | "exit" =>
       return true
     | "textDocument/didOpen" =>
-      handleDidOpen session params;
-      return false
+      handleDidOpen session params; return false
     | "textDocument/didChange" =>
-      handleDidChange session params;
-      return false
+      handleDidChange session params; return false
     | "textDocument/didClose" =>
-      handleDidClose session params;
-      return false
+      handleDidClose session params; return false
     | "workspace/didChangeConfiguration" =>
-      handleDidChangeConfiguration session;
-      return false
+      handleDidChangeConfiguration session; return false
     | _ =>
       return false
   | some method, some id =>
@@ -1169,8 +1165,7 @@ def dispatch (session : Session) (json : Json) : IO Bool := do
       session.sink.respond id Json.null
       return false
     | "$/lean-fmt/health" =>
-      handleHealth session id;
-      return false
+      handleHealth session id; return false
     | "textDocument/formatting" =>
       session.serveCancellable id (handleFormatting session id params (ranged := false))
       return false
@@ -1271,11 +1266,9 @@ private partial def workLoop (session : Session) (queue : Std.CloseableChannel.S
       catch error =>
         match idOf? json with
         | some id =>
-          session.sink.fail id .internalError s!"{error}";
-          pure false
+          session.sink.fail id .internalError s!"{error}"; pure false
         | none =>
-          session.sink.log 1 s!"lean-fmt: {error}";
-          pure false
+          session.sink.log 1 s!"lean-fmt: {error}"; pure false
     if stop then
       -- `exit` before `shutdown` is a protocol violation and exits non-zero, per the
       -- specification.

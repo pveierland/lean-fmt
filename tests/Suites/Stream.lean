@@ -171,8 +171,7 @@ private def testEncodings (ctx : Ctx) : IO Unit := do
   writeFile utf8 "module\n\nnamespace     αβγ\n\nend αβγ\n"
   let json ←
     parseJson
-        (←
-            fmt ctx
+        (← fmt ctx
                 #["format", "-", "--stdin-filename", ctx.identity, "--range-lines", "3:1-3:18",
                   "--json"]
                 utf8).stdout
@@ -197,8 +196,7 @@ private def testEncodings (ctx : Ctx) : IO Unit := do
 private def testJsonSurface (ctx : Ctx) (dirty : System.FilePath) : IO Unit := do
   let json ←
     parseJson
-        (←
-            fmt ctx #["format", "-", "--stdin-filename", ctx.identity, "--range", "30:49", "--json"]
+        (← fmt ctx #["format", "-", "--stdin-filename", ctx.identity, "--range", "30:49", "--json"]
                 dirty).stdout
         "json"
   ensureJsonAt json [.field "schema"] (Lean.toJson "lean-fmt.stream.v1") "json schema"

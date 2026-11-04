@@ -328,8 +328,7 @@ private partial def choiceDisagreement? (source : String) (stx : Lean.Syntax) :
         | none => none
         | some first =>
           let expected := choiceSpelling source first
-          match
-            (children.extract 1 children.size).findIdx?
+          match (children.extract 1 children.size).findIdx?
               (fun alternative => choiceSpelling source alternative != expected) with
           | some offset =>
             match children[offset + 1]? with
@@ -1248,8 +1247,7 @@ private partial def collectWhereStarts (source : String) (width : Nat) (stx : Le
     -- declaration at all keeps whatever header its ancestors set.
     let headerStart :=
       if kind == ``Lean.Parser.Command.declaration then
-        match
-          children.findSome? fun child =>
+        match children.findSome? fun child =>
             if child.isOfKind ``Lean.Parser.Command.declModifiers then none
             else (selectedLeafRanges child)[0]?.map (·.start) with
         | some start => start
@@ -1397,8 +1395,7 @@ private def guardedPipe? (stx : Lean.Syntax) : Option Lean.Syntax :=
     match children.find? (· matches .atom _ "|") with
     | some pipe => some pipe
     | none =>
-      match
-        children.find? fun child =>
+      match children.find? fun child =>
           child.isOfKind ``Lean.Parser.Term.doPatDecl ||
             child.isOfKind ``Lean.Parser.Term.doIdDecl with
       | some decl =>
@@ -3040,8 +3037,7 @@ private def finishConstraint (result : Transformed) (carrier? : Option Constrain
   | none =>
     return result
   | some span =>
-    match
-      state.constraints.findIdx? fun (constraint, expected) =>
+    match state.constraints.findIdx? fun (constraint, expected) =>
         expected == span && constraint.carrier == carrier with
     | some index =>
       if state.appliedConstraints.contains index then
@@ -3568,8 +3564,7 @@ private def constrainBoundary (format : Std.Format) :
             -- node nested the command or spelled `ppDedent` and did not.
             dedents :=
               if layout matches .dedented then
-                match
-                  state.nestedCommands.find? fun span : TokenSpan =>
+                match state.nestedCommands.find? fun span : TokenSpan =>
                     span.start == state.terminalIndex with
                 | some span => state.dedents.push (span, dedentColumns state)
                 | none => state.dedents
@@ -3821,8 +3816,7 @@ private def transformOrdinaryText (value : String) :
               tokenLeaves := state.metrics.tokenLeaves + 1
               normalizedTokens := state.metrics.normalizedTokens + if normalized then 1 else 0 } }
     finishNode
-        (←
-          placeDroppedIslandsAfter
+        (← placeDroppedIslandsAfter
               { format :=
                   .append boundary (.append (.text terminal.sourceSpelling) (.text trailing))
                 span? := some ⟨state.terminalIndex, state.terminalIndex + 1⟩
@@ -4943,10 +4937,9 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   let (formattedSyntax, islands) := protectSourceData categories source commentFree
   -- The closing brace's own row decision (`collectStructInstCloseBraces`): its ranges join
   -- `explodedRanges` only here, after the pin filter has run.
-  match
-    CommandPlan.resolve source terminals comments blockDangling islands constraints boundaryStarts
-      joined nestedCommandRanges (explodedRanges ++ closeBraceRanges) headSpans baseIndent
-      structInstAnchors with
+  match CommandPlan.resolve source terminals comments blockDangling islands constraints
+      boundaryStarts joined nestedCommandRanges (explodedRanges ++ closeBraceRanges) headSpans
+      baseIndent structInstAnchors with
   | .error failure =>
     return .error failure
   | .ok plan =>

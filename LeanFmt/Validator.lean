@@ -184,8 +184,8 @@ def validateMap (draft : FormatDraft) : Except ValidationFailure Unit := do
   unless sourceCursor == draft.sourceBytes do
     return ← fail .sourceMap s!"source map stops at {sourceCursor}, expected {draft.sourceBytes}"
   unless outputCursor == draft.text.utf8ByteSize do
-    return ←
-        fail .sourceMap s!"output map stops at {outputCursor}, expected {draft.text.utf8ByteSize}"
+    return ← fail .sourceMap
+            s!"output map stops at {outputCursor}, expected {draft.text.utf8ByteSize}"
 
 /- A byte offset as `line:column`, both one-based and counted in characters, so a detail reads the
 way the compiler's own diagnostics do. -/
@@ -265,8 +265,7 @@ def compare (beforeText : String) (before : LosslessSource) (afterText : String)
       slice afterBytes after.terminalStop afterBytes.size do
     return ← fail .terminal "terminal command or verbatim tail changed"
   unless before.nodes.size == after.nodes.size do
-    return ←
-        fail .structure
+    return ← fail .structure
             s!"node count changed: {before.nodes.size} -> {after.nodes.size}\
       {firstNodeDivergence beforeText before afterText after}"
             ((firstDivergentNode? before after).bind (nodeDivergenceSource? before ·)).toArray
@@ -276,26 +275,23 @@ def compare (beforeText : String) (before : LosslessSource) (afterText : String)
     let leftKind := kindOfNode before index
     let rightKind := kindOfNode after index
     unless leftKind == rightKind && left.parent == right.parent do
-      return ←
-          fail .structure
+      return ← fail .structure
               s!"node {index} changed kind/parent: {leftKind}/{left.parent} -> {rightKind}/{right.parent}"
               (nodeDivergenceSource? before index).toArray
   unless before.tokens.size == after.tokens.size do
-    return ←
-        fail .tokens s!"token count changed: {before.tokens.size} -> {after.tokens.size}"
+    return ← fail .tokens s!"token count changed: {before.tokens.size} -> {after.tokens.size}"
             ((firstDivergentToken? beforeText before afterText after).map
                 (before.tokens[·]!.start)).toArray
   for index in [0:before.tokens.size] do
     let left := before.tokens[index]!
     let right := after.tokens[index]!
     unless left.node == right.node do
-      return ←
-          fail .structure s!"token {index} changed owner {left.node} -> {right.node}" #[left.start]
+      return ← fail .structure s!"token {index} changed owner {left.node} -> {right.node}"
+              #[left.start]
     let leftText := slice beforeBytes left.start left.stop
     let rightText := slice afterBytes right.start right.stop
     unless leftText == rightText do
-      return ←
-          fail .tokens s!"token {index} ({kindOfNode before left.node}) changed spelling"
+      return ← fail .tokens s!"token {index} ({kindOfNode before left.node}) changed spelling"
               #[left.start]
 
 /-- The contract as a reflow-invariant word sequence: a standalone leading `--` prose line
@@ -360,8 +356,7 @@ def admit (beforeText : String) (before : LosslessSource) (first : FormatDraft)
     else first.commentContract == second.commentContract
   unless commentsMatch do
     if first.commentContract.size != second.commentContract.size then
-      return ←
-          fail .comments
+      return ← fail .comments
               s!"comment contract count changed: \
         {first.commentContract.size} -> {second.commentContract.size}"
     for index in [0:first.commentContract.size] do
@@ -387,8 +382,7 @@ def admit (beforeText : String) (before : LosslessSource) (first : FormatDraft)
       | index :: rest =>
         let others := if rest.isEmpty then "" else s!" and {rest.length} more row(s)"
         s!" at line {index + 1}{others}: {repr firstLines[index]!} -> {repr secondLines[index]!}"
-    return ←
-        fail .idempotence s!"formatting the reparsed candidate changed bytes{divergence}"
+    return ← fail .idempotence s!"formatting the reparsed candidate changed bytes{divergence}"
             (idempotenceSources first.sourceMap firstLines divergent)
   return {
       text := first.text

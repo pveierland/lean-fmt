@@ -110,8 +110,7 @@ private def testGatesDiscriminate : IO Unit := do
       "the findings gate accepted a scan that never fired"
 where throws (action : IO Unit) : IO Bool :=
     (try
-      action;
-      pure false
+      action; pure false
     catch _ =>
       pure true)
 

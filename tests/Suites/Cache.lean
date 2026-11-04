@@ -581,8 +581,7 @@ public def main (args : List String) : IO UInt32 := do
   -- `Cli` shape, and it disabled the cache for entire projects. Guard the precondition, or a
   -- future build that happens to create the directory turns all of that into decoration silently.
   ensure
-      (!(←
-          (root / "tests" / "fixtures" / "cache" / "dep" / ".lake" / "build" / "lib" /
+      (!(← (root / "tests" / "fixtures" / "cache" / "dep" / ".lake" / "build" / "lib" /
                 "lean").pathExists))
       "tests/fixtures/cache/dep has been built; the absent-search-path-root coverage is no longer real"
   withTempDir fun pristine => do

@@ -761,9 +761,7 @@ private unsafe def skeletonRead (setup : Lean.ModuleSetup) (source : String)
     commands := commands.push live
     unless changesParsing stx do
       continue
-    match
-      ←
-        EIO.toIO'
+    match ← EIO.toIO'
             ((Lean.Elab.Command.elabCommandTopLevel stx #[]
                   { cmdPos := commandPos
                     fileName := sourcePath.toString
@@ -1065,8 +1063,7 @@ private unsafe def analyzeSnapshot (setup : Lean.ModuleSetup) (source : String)
   let some terminal :=
     terminal? | throw <| IO.userError "successful frontend produced no terminal command"
   let artifact ←
-    match
-      ModuleArtifact.ofParsedModule setup.name.toString normalizedSource commands terminal.stx
+    match ModuleArtifact.ofParsedModule setup.name.toString normalizedSource commands terminal.stx
         semantic with
     | .ok artifact =>
       pure artifact
@@ -1184,8 +1181,7 @@ private unsafe def analyzeSnapshot (setup : Lean.ModuleSetup) (source : String)
                       detail :=
                         "reparsed candidate did not project losslessly over its own bytes" })
           else
-            match
-              Validator.admit normalizedSource projection first candidateProjection second
+            match Validator.admit normalizedSource projection first candidateProjection second
                 { frontendRuns := 1, reparsedCommands := candidateCommands.size }
                 format.reflowComments with
             | .ok layout =>
@@ -1240,8 +1236,7 @@ private unsafe def analyzeSnapshot (setup : Lean.ModuleSetup) (source : String)
             | .error error =>
               pure (none, some { gate := .structure, detail := error })
             | .ok candidateMaterialized =>
-              match
-                Validator.admit normalizedSource projection first candidateMaterialized.source
+              match Validator.admit normalizedSource projection first candidateMaterialized.source
                   second { frontendRuns := 2 } with
               | .ok layout =>
                 pure (some layout, none)
@@ -1502,7 +1497,8 @@ private structure IncrementalState where
 /-- A single-document frontend session. Its constructor and state are private so callers
 can only use the bounded lifecycle operations below; in particular, no caller can retain snapshot
 history or invoke parse/elaboration stages out of order. -/
-structure IncrementalAnalyzer where private mk ::
+structure IncrementalAnalyzer where
+  private mk ::
   private state : Std.Mutex IncrementalState
 
 private def setupIdentity (setup : Lean.ModuleSetup) : String :=
@@ -1717,9 +1713,8 @@ unsafe def validateCandidateExact (setup : Lean.ModuleSetup) (source candidate :
               output := ⟨0, normalizedCandidate.utf8ByteSize⟩ }] }
     match beforeArtifact.materialize source, afterArtifact.materialize candidate with
     | .ok beforeMaterialized, .ok afterMaterialized =>
-      match
-        Validator.admit normalizedSource beforeMaterialized.source first afterMaterialized.source
-          second { frontendRuns := 2 } with
+      match Validator.admit normalizedSource beforeMaterialized.source first
+          afterMaterialized.source second { frontendRuns := 2 } with
       | .ok canonical =>
         return { canonical? := some canonical }
       | .error failure =>

@@ -424,8 +424,7 @@ private def collapseSpaces (s : String) : String :=
     for c in s do
       if c.isWhitespace then
         if !cur.isEmpty then
-          words := cur :: words;
-          cur := ""
+          words := cur :: words; cur := ""
       else
         cur := cur.push c
     if !cur.isEmpty then

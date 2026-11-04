@@ -56,7 +56,8 @@ private inductive Provenance where
   | rewritten
   deriving BEq
 
-structure SourceTarget where private mk ::
+structure SourceTarget where
+  private mk ::
   module? : Option Lake.Module
   path : FilePath
   relativePath : String
@@ -88,7 +89,8 @@ being in the build closure does not make its contents reachable — Lake draws t
 itself, as `reachable := importAll || imp.isExported` in `fetchTransImportArts`.
 
 Both come from one traversal because both walk the same `mod.input` nodes. -/
-structure ImportClosures where private mk ::
+structure ImportClosures where
+  private mk ::
   /-- Everything the module transitively imports. `none` if the graph could not resolve it. -/
   build : Option (Array Lean.Name) := none
   /-- Everything a dependent sees through it. `none` if the graph could not resolve it. Private
@@ -118,14 +120,16 @@ private structure ClosureMemo where
 /-- What the import graph answered: the closures the caller named, and the direct-import edges of
 every module they reach. One walk produces both, and a caller that needs only one ignores the
 other. -/
-structure ImportGraph where private mk ::
+structure ImportGraph where
+  private mk ::
   /-- Keyed by the names asked for. A name absent from the map is not a workspace library module. -/
   closures : Std.HashMap Lean.Name ImportClosures
   /-- Every module reached, mapped to all of its direct imports, each flagged `isExported`. -/
   edges : Std.HashMap Lean.Name (Array (Lean.Name × Bool))
   deriving Inhabited
 
-structure Snapshot where private mk ::
+structure Snapshot where
+  private mk ::
   root : FilePath
   workspace : Lake.Workspace
   targets : Array SourceTarget
@@ -737,7 +741,8 @@ A `none` is always "the graph could not produce this", never a substituted defau
 a `none` degrades toward is the *caller's* judgement, made where the consequence is visible:
 `moduleEvidence` degrades toward `needsFrontend` and `ResultCache.closureDigests` toward a miss,
 and both would be wrong if the other's default were built in here. -/
-structure TargetFacts where private mk ::
+structure TargetFacts where
+  private mk ::
   /-- `some false` is an answer, not a failure: under `noBuild` a failed `olean` fetch *is* "not up
   to date". `none` means the target is not a workspace module, or the traversal itself failed. -/
   current? : Option Bool := none
@@ -752,7 +757,8 @@ structure TargetFacts where private mk ::
   setup? : Option Lean.ModuleSetup := none
   deriving Inhabited
 
-structure GraphFacts where private mk ::
+structure GraphFacts where
+  private mk ::
   /-- Aligned index-for-index with the `targets` argument, always. -/
   targets : Array TargetFacts
   /-- Keyed by the names passed as `extraImports`. A name absent from the map is not a workspace

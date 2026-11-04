@@ -249,8 +249,7 @@ public def main (args : List String) : IO UInt32 := do
   let root ← repoRoot
   withTempDir fun work => do
       let headSha :=
-        (←
-            expectExit 0 "git rev-parse" "git" #["rev-parse", "HEAD"] (cwd? :=
+        (← expectExit 0 "git rev-parse" "git" #["rev-parse", "HEAD"] (cwd? :=
                 some root)).stdout.trimAscii.toString
       let consumer := work / "consumer"
       IO.FS.createDirAll (consumer / "Demo")

@@ -458,9 +458,8 @@ private def testAlignmentSequences : IO Unit := do
   let expected := spellings.map (·.2)
   let leaves := spellings.map (·.1)
   let plan :=
-    match
-      Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[] #[]
-        #[] 0 with
+    match Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[]
+        #[] #[] 0 with
     | .ok plan => plan
     | .error failure => panic! s!"an ordinary terminal sequence's plan was refused: {failure}"
   let run (native : Std.Format) := Formatter.NativeLayout.transform plan native
@@ -557,9 +556,8 @@ private def testPinnedRows : IO Unit := do
   let native := Std.Format.text "a" ++ .nest 4 (.line ++ .text "b")
   let run (layout : Formatter.NativeLayout.BoundaryLayout) : IO String := do
     let plan ←
-      match
-        Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[(2, layout)]
-          #[] #[] #[] #[] 0 with
+      match Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[]
+          #[(2, layout)] #[] #[] #[] #[] 0 with
       | .ok plan =>
         pure plan
       | .error failure =>
@@ -809,9 +807,8 @@ private def testPlanLedgers : IO Unit := do
     (constraints : Array Formatter.NativeLayout.OffsideConstraint)
     (boundaries : Array (Nat × Formatter.NativeLayout.BoundaryLayout))
     (joined : Array SourceRange) : IO Formatter.NativeLayout.CommandPlan := do
-    match
-      Formatter.NativeLayout.CommandPlan.resolve src terminals comments dangling islands constraints
-        boundaries joined #[] #[] #[] 0 with
+    match Formatter.NativeLayout.CommandPlan.resolve src terminals comments dangling islands
+        constraints boundaries joined #[] #[] #[] 0 with
     | .ok plan =>
       return plan
     | .error failure =>
@@ -833,21 +830,18 @@ private def testPlanLedgers : IO Unit := do
   -- Interior comment: its boundary index is past the last terminal, so no boundary leaf can
   -- ever claim it.
   expectRefusal "comments"
-      (←
-        planOf source terminals
+      (← planOf source terminals
             #[{ payload := "-- c", range := ⟨5, 9⟩, placement := .leading, kind := .line }] #[] #[]
             #[] #[] #[])
       adjacent false "inserted 0/1 interior comments"
   -- Exact island: never spelled, and its start matches no terminal, so it is never placed.
   expectRefusal "islands"
-      (←
-        planOf source terminals #[] #[] #[{ marker := "⟪island⟫", range := ⟨1, 2⟩, text := "xy" }]
+      (← planOf source terminals #[] #[] #[{ marker := "⟪island⟫", range := ⟨1, 2⟩, text := "xy" }]
             #[] #[] #[])
       sequenced false "applied 0/1 exact islands"
   -- Offside constraint: its span matches no node of a right-associated document.
   expectRefusal "constraints"
-      (←
-        planOf source3 terminals3 #[] #[] #[]
+      (← planOf source3 terminals3 #[] #[] #[]
             #[{ range := ⟨0, 3⟩, indentAdjustment := 2, carrier := .nest }] #[] #[])
       rightAssoc false "applied 0/1 offside constraints"
   -- Boundary: its terminal is the island's *second* terminal, so the one-step island
@@ -873,8 +867,7 @@ private def testPlanLedgers : IO Unit := do
       false "joined 0/1 guarded bail-outs"
   -- Block-dangling comment: no node of a right-associated document spans its block.
   expectRefusal "trailing"
-      (←
-        planOf source3 terminals3 #[]
+      (← planOf source3 terminals3 #[]
             #[(⟨0, 3⟩,
                 ({ payload := "-- d", range := ⟨3, 4⟩, placement := .dangling, kind := .line } :
                   Formatter.NativeLayout.InteriorComment))]
@@ -884,8 +877,7 @@ private def testPlanLedgers : IO Unit := do
   -- it: `consumeIsland` cannot tell a cut range from a cursor that fell behind, and those want
   -- opposite dispositions. `ab` is one terminal ⟨0,2⟩; the island takes its second byte.
   let (wide, wideTerminals) := spelledTerminals #[("ab", "ab")]
-  match
-    Formatter.NativeLayout.CommandPlan.resolve wide wideTerminals #[] #[]
+  match Formatter.NativeLayout.CommandPlan.resolve wide wideTerminals #[] #[]
       #[{ marker := "⟪cut⟫", range := ⟨1, 2⟩, text := "b" }] #[] #[] #[] #[] #[] #[] 0 with
   | .ok _ =>
     throw (IO.userError "an island cutting a terminal was accepted")
@@ -898,8 +890,7 @@ private def testPlanLedgers : IO Unit := do
   -- `Mathlib/Tactic/InferParam.lean` needed and did not get, reported as `exact island 1164:1269
   -- cuts terminal 1159:1163` against a correct island range.
   expectRefusal "island cursor behind"
-      (←
-        planOf source3 terminals3 #[] #[] #[{ marker := "⟪island⟫", range := ⟨4, 5⟩, text := "c" }]
+      (← planOf source3 terminals3 #[] #[] #[{ marker := "⟪island⟫", range := ⟨4, 5⟩, text := "c" }]
             #[] #[] #[])
       (Std.Format.text "⟪island⟫") true "did not spell terminal 0/3"
 
@@ -920,9 +911,8 @@ private def testStructuralAnchors : IO Unit := do
     (islands : Array Formatter.NativeLayout.ExactIsland := #[])
     (comments : Array Formatter.NativeLayout.InteriorComment := #[]) :
     IO Formatter.NativeLayout.CommandPlan := do
-    match
-      Formatter.NativeLayout.CommandPlan.resolve source terminals comments #[] islands #[] #[] #[]
-        nestedCommandRanges #[] #[] 0 anchorRanges with
+    match Formatter.NativeLayout.CommandPlan.resolve source terminals comments #[] islands #[] #[]
+        #[] nestedCommandRanges #[] #[] 0 anchorRanges with
     | .ok plan =>
       return plan
     | .error failure =>
@@ -934,17 +924,15 @@ private def testStructuralAnchors : IO Unit := do
     | .error failure =>
       throw (IO.userError s!"an anchored tree was refused: {failure.detail}")
   -- Validation: overlapping without containment is refused; empty is refused; nested is accepted.
-  match
-    Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[] #[] #[]
-      0 #[⟨0, 3⟩, ⟨2, 5⟩] with
+  match Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[] #[]
+      #[] 0 #[⟨0, 3⟩, ⟨2, 5⟩] with
   | .ok _ =>
     throw (IO.userError "overlapping anchor intervals were accepted")
   | .error detail =>
     ensure (detail.contains "overlap without containment")
         s!"overlap refusal lost its reason: {detail}"
-  match
-    Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[] #[] #[]
-      0 #[⟨2, 2⟩] with
+  match Formatter.NativeLayout.CommandPlan.resolve source terminals #[] #[] #[] #[] #[] #[] #[] #[]
+      #[] 0 #[⟨2, 2⟩] with
   | .ok _ =>
     throw (IO.userError "an empty anchor interval was accepted")
   | .error detail =>
@@ -965,8 +953,7 @@ private def testStructuralAnchors : IO Unit := do
   let anchored := Formatter.NativeLayout.lowerNative #[] anchoredFormat
   let plain :=
     Formatter.NativeLayout.lowerNative #[]
-      (←
-        match Formatter.NativeLayout.transform (← planOf #[]) grouped with
+      (← match Formatter.NativeLayout.transform (← planOf #[]) grouped with
         | .ok (format, _) =>
           pure format
         | .error failure =>
@@ -997,8 +984,7 @@ private def testStructuralAnchors : IO Unit := do
   -- The ledger still guards a plan built directly, the way `testPlanLedgers` builds one: an
   -- interval no node starts inside is never claimed.
   let directPlan : Formatter.NativeLayout.CommandPlan := { filtered with anchors := #[⟨1, 2⟩] }
-  match
-    Formatter.NativeLayout.transform directPlan
+  match Formatter.NativeLayout.transform directPlan
       (Std.Format.text "a" ++ .line ++ Std.Format.text "⟪island⟫") with
   | .ok _ =>
     throw (IO.userError "an island-straddling anchor interval was applied anyway")
@@ -1044,8 +1030,7 @@ private def testStructuralAnchors : IO Unit := do
   -- `unadapted` refuses the whole file, which is what
   -- `Proofs/AlgebraicGeometry/Modules/IdealSheafImage.lean` reported as an infrastructure failure
   -- over a `where` field whose tactic block the formatter dropped at terminal 93 of 380.
-  match
-    Formatter.NativeLayout.transform (← planOf #[⟨2, 5⟩])
+  match Formatter.NativeLayout.transform (← planOf #[⟨2, 5⟩])
       (Std.Format.text "a" ++ .line ++ Std.Format.text "b") with
   | .ok _ =>
     throw (IO.userError "a document that stopped short of the terminals was accepted")
@@ -1068,8 +1053,7 @@ private def testStructuralAnchors : IO Unit := do
       "nested anchor intervals were not both claimed"
   let withComment ←
     lowered
-        (←
-          planOf #[⟨0, 5⟩] (comments :=
+        (← planOf #[⟨0, 5⟩] (comments :=
               #[{ payload := "-- note", range := ⟨1, 2⟩, placement := .leading, kind := .line }]))
         tree
   ensure ((renderText 80 withComment).contains "-- note")

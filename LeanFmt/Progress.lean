@@ -39,7 +39,8 @@ structure State where
   lastDraw : Nat := 0
 
 /-- A progress display. When `live?` is false every operation is a no-op; `state` is unused. -/
-structure Progress where private mk ::
+structure Progress where
+  private mk ::
   live? : Bool
   state : IO.Ref State
   lock : Std.Mutex Unit

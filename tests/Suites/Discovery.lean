@@ -109,16 +109,13 @@ private def testNested (ctx : Ctx) : IO Unit := do
       ["Root.lean", "app/App.lean", "lakefile.lean", "lib/Lib.lean", "lib/deep/Deep.lean"]
       (← selected ctx nested)
   ensureEq "the nested config governs its own directory" "42"
-      (←
-        setting (← showConfig ctx nested (nested / "lib" / "Lib.lean")) "format.line-width"
+      (← setting (← showConfig ctx nested (nested / "lib" / "Lib.lean")) "format.line-width"
             "nested")
   ensureEq "the nested config governs its subdirectories too" "42"
-      (←
-        setting (← showConfig ctx nested (nested / "lib" / "deep" / "Deep.lean"))
+      (← setting (← showConfig ctx nested (nested / "lib" / "deep" / "Deep.lean"))
             "format.line-width" "nested")
   ensureEq "a sibling directory keeps the root config" "100"
-      (←
-        setting (← showConfig ctx nested (nested / "app" / "App.lean")) "format.line-width"
+      (← setting (← showConfig ctx nested (nested / "app" / "App.lean")) "format.line-width"
             "nested")
   -- The hierarchy must not merge: `lib` never declared an exclude, so it has none -- it does not
   -- inherit the root's. This is the single decision that separates this design from a layered one.
@@ -127,12 +124,10 @@ private def testNested (ctx : Ctx) : IO Unit := do
   ensureEq "the root exclude reaches only the subtree it governs" 3
       (← gate (← showConfig ctx nested (nested / "skipped" / "Skipped.lean")) "nested")
   ensureEq "reflow-comments parses and governs its own directory" "true"
-      (←
-        setting (← showConfig ctx nested (nested / "lib" / "Lib.lean")) "format.reflow-comments"
+      (← setting (← showConfig ctx nested (nested / "lib" / "Lib.lean")) "format.reflow-comments"
             "nested")
   ensureEq "reflow-comments defaults off outside it" "false"
-      (←
-        setting (← showConfig ctx nested (nested / "app" / "App.lean")) "format.reflow-comments"
+      (← setting (← showConfig ctx nested (nested / "app" / "App.lean")) "format.reflow-comments"
             "nested")
 
 /-- `--reflow-comments` / `--no-reflow-comments`: the command-line flag overrides the
@@ -385,8 +380,7 @@ private def testLargeTree (ctx : Ctx) : IO Unit := do
   -- `mod090` carries a config and `mod099` does not. They are siblings, so `mod099` falls back to
   -- the root -- it must not pick up its neighbor's width.
   ensureEq "a directory with its own config uses it" "80"
-      (←
-        setting (← showConfig ctx big (big / "pkg04" / "mod090" / "F0.lean")) "format.line-width"
+      (← setting (← showConfig ctx big (big / "pkg04" / "mod090" / "F0.lean")) "format.line-width"
             "big")
   ensureEq "a sibling directory without one falls back to the root, not to its neighbor" "100"
       (← setting deep "format.line-width" "big")

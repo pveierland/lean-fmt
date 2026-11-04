@@ -60,7 +60,8 @@ private structure IndexedEdit where
 
 /-- An all-or-nothing transformation of one immutable source snapshot. Construction owns range,
 UTF-8, ordering, conflict, assembly, and inverse-edit checks. -/
-structure Patch where private mk ::
+structure Patch where
+  private mk ::
   source : Digest
   output : String
   edits : Array Edit

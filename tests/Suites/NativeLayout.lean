@@ -187,8 +187,7 @@ private def testChains (ctx : Ctx) : IO Unit := do
   -- written as a `let` body -- ordinary Lean, and 152 columns of indent in this repository's own
   -- `catalogSchemaJson` until it was narrowed to pins strictly inside.
   ensureEq "a chain that is a let body is compensated like any other" [4, 4, 4]
-      (←
-        bodyIndents chains
+      (← bodyIndents chains
             "  head ++ \"alpha\" ++ a ++ \"bravo\" ++ b ++ \"charlie\" ++ c ++ \
 \"delta\" ++ d ++ \"echo\" ++ e ++")
   -- `proj` inside `proj` is a chain by node kind with no break in it, so the compensation finds no
@@ -381,8 +380,7 @@ private def testIslands (ctx : Ctx) : IO Unit := do
   -- The canonical break onto its own line is the pin -- a degraded command keeps the source's line.
   ensureEq "a splice the toolchain can spell is formatted, not protected"
       "  `(tactic| island_opt$[ $x?]?)"
-      (←
-        lineAfterExact islands
+      (← lineAfterExact islands
             "def optionalSplice (x? : Option Lean.Ident) : Lean.MacroM Lean.Syntax :=")
   -- A `tok%$x` capture stands where an atom does, so no marker can replace it in place; the
   -- enclosing node is the island. Without that escalation both of these refuse their command
@@ -397,8 +395,7 @@ private def testIslands (ctx : Ctx) : IO Unit := do
   -- uncaught (`format: uncaught backtrack exception`); the command degrades to its source bytes
   -- verbatim, odd spacing and all, and the command after it still formats.
   ensureEq "a backtracked command keeps its source bytes verbatim" "        T) : True := trivial"
-      (←
-        lineAfterExact islands
+      (← lineAfterExact islands
             "theorem backtrackBinder (M : Type) (T : BacktrackTheo) (hM : M   ⊨⊨")
   ensureEq "the command after a backtracked one still formats" "  Nat.add_zero n"
       (← lineAfterExact islands "theorem formatsAroundBacktrack (n : Nat) : n + 0 = n :=")

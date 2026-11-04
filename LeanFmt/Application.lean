@@ -199,7 +199,8 @@ private structure LiveChild where
 project and toolchain once, and owns collision-free request names. No caller can observe setup paths
 or sequence cleanup. Batch envelopes use fresh child processes; the language server may instead
 request an exact setup for its document-owned in-process analyzer. -/
-structure ExactRun where private mk ::
+structure ExactRun where
+  private mk ::
   project : Project.Snapshot
   application : FilePath
   temporary : FilePath
@@ -836,9 +837,8 @@ private def internalFailure (technical : String) : String :=
 
 private def canonicalAnalysis (snapshot : SourceSnapshot) (renderCanonical : Bool)
     (analysis : AnalysisEnvelope) : IO SemanticAnalysis := do
-  match
-    SemanticAnalysis.ofArtifact snapshot.source snapshot.config.format.lineWidth analysis.artifact?
-      analysis.diagnostics with
+  match SemanticAnalysis.ofArtifact snapshot.source snapshot.config.format.lineWidth
+      analysis.artifact? analysis.diagnostics with
   | .ok semantic =>
     let semantic := semantic.withDefiningModules analysis.definingModules?
     if semantic.result?.isNone then
@@ -879,8 +879,7 @@ def ExactRun.analyzeSnapshot (run : ExactRun) (snapshot : SourceSnapshot) (rende
     (cancel? : Option Std.CancellationToken := none) (compiled : Bool := false)
     (validationPolicy : ValidationPolicy := .exact) : IO SemanticAnalysis := do
   canonicalAnalysis snapshot renderCanonical
-      (←
-        run.envelope snapshot captureSemantic validator captureOccurrences (format? :=
+      (← run.envelope snapshot captureSemantic validator captureOccurrences (format? :=
             if renderCanonical then some snapshot.config.format else none) (cancel? := cancel?)
             (compiled := compiled) (validationPolicy := validationPolicy))
 
@@ -1054,8 +1053,7 @@ private def unifiedDiff (path before after : String) : String :=
       newBefore := newBefore.push newSeen
       match action with
       | .skip =>
-        oldSeen := oldSeen + 1;
-        newSeen := newSeen + 1
+        oldSeen := oldSeen + 1; newSeen := newSeen + 1
       | .delete =>
         oldSeen := oldSeen + 1
       | .insert =>
@@ -1082,8 +1080,7 @@ private def unifiedDiff (path before after : String) : String :=
       for index in [start:stop + 1] do
         match script[index]!.1 with
         | .skip =>
-          oldCount := oldCount + 1;
-          newCount := newCount + 1
+          oldCount := oldCount + 1; newCount := newCount + 1
         | .delete =>
           oldCount := oldCount + 1
         | .insert =>
@@ -1422,8 +1419,7 @@ private def prepareFile (plan : RulePlan) (renderCanonical unsafeFixes : Bool)
     let some header ←
       Imports.parseHeaderModel
           normalized | throw <| IO.userError "FMT004 could not parse the original import header"
-    match
-      Imports.classifyDefiningUses header reportImports
+    match Imports.classifyDefiningUses header reportImports
         (analysis.result?.bind (·.definingModules?)) with
     | .error reason =>
       throw <| IO.userError reason
@@ -1452,10 +1448,8 @@ private def PreviewMode.rendersCanonical : PreviewMode → Bool
 private def previewFile (mode : PreviewMode) (plan : RulePlan) (unsafeFixes : Bool)
     (reportImports : Array Finding) (withheldRedundant : Nat) (snapshot : SourceSnapshot)
     (analysis : SemanticAnalysis) : IO FileReport := do
-  match
-    ←
-      prepareFile plan mode.rendersCanonical unsafeFixes reportImports withheldRedundant snapshot
-          analysis with
+  match ← prepareFile plan mode.rendersCanonical unsafeFixes reportImports withheldRedundant
+          snapshot analysis with
   | .error report =>
     return report
   | .ok prepared =>
@@ -1490,9 +1484,7 @@ private def fixFile (run : ExactRun) (plan : RulePlan) (unsafeFixes : Bool)
   -- `fix` does not render: the patch bases on the file's own `normalized`
   -- bytes and applies the admitted fixes from `selected` — FMT003 among them — at original
   -- coordinates. No reflow, no canonical recomputation.
-  match
-    ←
-      prepareFile plan (renderCanonical := false) unsafeFixes reportImports withheldRedundant
+  match ← prepareFile plan (renderCanonical := false) unsafeFixes reportImports withheldRedundant
           snapshot analysis with
   | .error report =>
     return report
@@ -1550,9 +1542,7 @@ private def formatFile (plan : RulePlan) (unsafeFixes : Bool) (reportImports : A
     match analysis.result?.bind (·.canonical?) with
     | some canonical => if canonical.validation.bypassed then 1 else 0
     | none => 0
-  match
-    ←
-      prepareFile plan (renderCanonical := true) unsafeFixes reportImports withheldRedundant
+  match ← prepareFile plan (renderCanonical := true) unsafeFixes reportImports withheldRedundant
           snapshot analysis with
   | .error report =>
     return report
@@ -1655,7 +1645,8 @@ structure Position where
 
 Deliberately not a line table. A consumer can only ask about an offset the report already named, which
 keeps this bounded; an offset the report never named has no answer. -/
-structure PositionIndex where private mk ::
+structure PositionIndex where
+  private mk ::
   private entries : Std.HashMap String (Std.HashMap Nat Position)
 
 /-- The index for a report with no positions to resolve — `organize`, and any caller rendering a
@@ -2030,8 +2021,7 @@ def execute (request : RunRequest) : IO RunOutcome := do
           files :=
             files.push
               (withVerbatimCommands snapshot analysis
-                (←
-                  withPhase "rules" <|
+                (← withPhase "rules" <|
                       previewFile previewMode plan request.unsafeFixes importReport.1 importReport.2
                         snapshot analysis))
       let positions ← profiledPositions snapshots files
@@ -2235,9 +2225,7 @@ def ExactRun.streamEnvelope (run : ExactRun) (target : Project.SourceTarget) (pl
   let (normalized, _) := LosslessSource.normalize target.source
   let (reportImports, withheldRedundant) ←
     singleImportReport plan project.workspace normalized target.config.format
-  match
-    ←
-      prepareFile plan renderCanonical unsafeFixes reportImports withheldRedundant target
+  match ← prepareFile plan renderCanonical unsafeFixes reportImports withheldRedundant target
           analysis with
   | .error report =>
     return {

@@ -61,7 +61,8 @@ private structure Stamp where
 
 /-- One observation of the tree. Compared as a whole: a file appearing or disappearing changes the
 set, which is why creation and deletion need no separate mechanism. -/
-structure Snapshot where private mk ::
+structure Snapshot where
+  private mk ::
   private stamps : Array Stamp
   deriving BEq
 

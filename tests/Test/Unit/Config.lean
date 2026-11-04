@@ -271,8 +271,7 @@ private def testDiscovery : IO Unit := do
     write "lean-fmt.toml" "[lint]\nselect = [\"all\"]\n"
     let ambiguous ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure ambiguous "two recognized configuration names in one directory were accepted"
@@ -332,8 +331,7 @@ extend-select = [\"FMT009\"]\n"
     write "sub/.lean-fmt.toml" "extend = \"../cycle-a.toml\"\n"
     let cyclic ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure cyclic "an extend cycle was accepted"
@@ -349,16 +347,14 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "select = [\"security\"]\n[lint]\nselect = [\"all\"]\n"
     let both ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure both "the same linter key set flat and under [lint] was accepted"
     write ".lean-fmt.toml" "line-width = 80\n"
     let misplaced ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplaced "line-width at the top level was accepted"
@@ -367,8 +363,7 @@ extend-select = [\"FMT009\"]\n"
       write ".lean-fmt.toml" s!"[format]\nline-width = {width}\n"
       let bounded ←
         try
-          discard <| Discovery.run root none;
-          pure false
+          discard <| Discovery.run root none; pure false
         catch _ =>
           pure true
       ensure bounded s!"line-width = {width} was accepted outside 1..1000"
@@ -423,64 +418,56 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "pinned-comments = [\"shake: keep\"]\n"
     let misplacedPins ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedPins "pinned-comments at the top level was accepted"
     write ".lean-fmt.toml" "declaration-body = \"same-line\"\n"
     let misplacedBody ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedBody "declaration-body at the top level was accepted"
     write ".lean-fmt.toml" "[format]\npinned-comments = [\"\"]\n"
     let emptyPhrase ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure emptyPhrase "an empty pinned-comments phrase was accepted"
     write ".lean-fmt.toml" "[format]\ndeclaration-body = \"flat\"\n"
     let badBody ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badBody "an unknown declaration-body value was accepted"
     write ".lean-fmt.toml" "[format]\nempty-structure-instance = \"loose\"\n"
     let badEmpty ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badEmpty "an unknown empty-structure-instance value was accepted"
     write ".lean-fmt.toml" "empty-structure-instance = \"compact\"\n"
     let misplacedEmpty ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedEmpty "empty-structure-instance at the top level was accepted"
     write ".lean-fmt.toml" "declaration-where = \"next-line\"\n"
     let misplacedWhere ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedWhere "declaration-where at the top level was accepted"
     write ".lean-fmt.toml" "[format]\ndeclaration-where = \"hanging\"\n"
     let badWhere ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badWhere "an unknown declaration-where value was accepted"
@@ -508,16 +495,14 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "magic-trailing-comma = \"ignore\"\n"
     let misplacedComma ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedComma "magic-trailing-comma at the top level was accepted"
     write ".lean-fmt.toml" "[format]\nmagic-trailing-comma = \"explode\"\n"
     let badComma ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badComma "an unknown magic-trailing-comma value was accepted"
@@ -543,24 +528,21 @@ extend-select = [\"FMT009\"]\n"
     write ".lean-fmt.toml" "import-layout = \"canonical\"\n"
     let misplacedLayout ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure misplacedLayout "import-layout at the top level was accepted"
     write ".lean-fmt.toml" "[format]\nimport-layout = \"fancy\"\n"
     let badLayout ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure badLayout "an unknown import-layout value was accepted"
     write ".lean-fmt.toml" "[format]\nimport-groups = [\"\"]\n"
     let emptyGroup ←
       try
-        discard <| Discovery.run root none;
-        pure false
+        discard <| Discovery.run root none; pure false
       catch _ =>
         pure true
     ensure emptyGroup "an empty import-groups prefix was accepted"
