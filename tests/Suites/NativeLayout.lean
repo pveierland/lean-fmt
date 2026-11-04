@@ -559,9 +559,11 @@ private def testOffside (ctx : Ctx) : IO Unit := do
       (← lineAfterExact offside "  {firstCollected, secondCollected, thirdCollected,")
   -- A two-statement bail-out falsifies the one-line precondition (`doSeqIndent`'s formatter emits
   -- the inter-item break as a leaf flattening cannot remove): the join is not collected, and the
-  -- guard keeps the upstream break after the bar, both statements at one column under it.
+  -- guard keeps the upstream break after the bar. The second statement stays on the first's row
+  -- because the source wrote `;` between them (`collectDoSemicolonStarts`), and the outer block
+  -- resumes at its own column below.
   ensureEq "a two-statement bail-out is not joined onto the bar's line"
-      "      dbg_trace \"missing\";\n      return 0"
+      "      dbg_trace \"missing\"; return 0\n    return current + 1"
       (← linesAfterExact offside "    let some current := value |" 2)
   -- A nested command starts at column zero, whatever the embedding node's `nest` chose.
   ensureEq "a command nested in another command starts at column zero" 1

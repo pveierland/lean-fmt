@@ -105,6 +105,16 @@ def nestedAction : Option Nat := do
 
 def bracketedAction : Option Nat := do { let value := 1; pure value }
 
+def semicolonAction (cell : IO.Ref Nat) : IO Unit := do
+  cell.set 1; cell.set 2
+
+def liftedAction (values : Array Nat) : IO (Option Nat) := do
+  return some (← pure (values.foldl (fun total value => total + value) 0))
+
+def matchedLift (values : Array Nat) : IO Nat := do
+  match ← pure (values.foldl (fun total value => total + value) 0) with
+  | total => return total
+
 def matchedAction (value : Option Nat) : Option Nat := do
   match value with
   | some current =>

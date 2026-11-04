@@ -8,6 +8,15 @@ notes are on the [releases page](https://github.com/jcreinhold/lean-fmt/releases
 Releases are named for the Lean toolchain they serve. Releases through 0.7.1 used semantic versions and a compatibility
 table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
 
+## Unreleased
+
+### Changed
+
+- Four line breaks Lean's grammar offers where no layout wants one no longer fire. `←` stays with its operand, so a
+  long action is no longer spelled `(←` above it; `match` stays with its first discriminant; a `do` item ended by a
+  written `;` keeps the next item on its row; and a structure's written constructor (`private mk ::`) opens its own row
+  instead of joining the `where` row. Files containing these shapes format differently.
+
 ## 4.35.0 — 2026-10-13
 
 ### Upgrading
