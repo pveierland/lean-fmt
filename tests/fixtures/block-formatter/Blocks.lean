@@ -152,4 +152,28 @@ def localDeclaration (value : Nat) : Nat := helper value
 where
   helper (current : Nat) : Nat := current + 1
 
+structure Reader where
+  read : Nat → IO Nat
+  name : String := ""
+
+def openedInstance : Reader :=
+  { read := fun request => do
+      IO.println "reading"
+      return request }
+
+def arrowedAction (values : Array Nat) : IO Nat := do
+  let total ← pure (values.foldl (fun total value => total + value) 0)
+  return total
+
+def shortArms (value : Nat) : IO Nat := do
+  match value with
+  | 7 => return 1
+  | _ =>
+    IO.println "many"
+    return value
+
+def shortBranch (value : Nat) (cell : IO.Ref Nat) : IO Nat := do
+  if value == 0 then cell.set 1; return 0
+  return value
+
 end BlockFixture

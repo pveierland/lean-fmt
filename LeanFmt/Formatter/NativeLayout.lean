@@ -1011,6 +1011,49 @@ private partial def collectNestedActionStarts (stx : Lean.Syntax) (starts : Arra
     children.foldl (init := starts) fun starts child => collectNestedActionStarts child starts
   | _ => starts
 
+/- A `let`'s `←` keeps its value on its row.
+
+`doIdDecl` (`Lean/Parser/Do.lean`), the declaration of `let x ← v` and the reassignment `x ← v`,
+spells the same `leftArrow` `nestedAction` does, and its trailing soft
+`line` strands the arrow the same way: `let part ←` with the value a row below it. It also puts a
+`ppSpace` in front of the arrow, a second soft `line` that takes the break once the first is joined
+and starts the row with `← value`, and `doLetArrow`'s `"let "` is a third, after which the name
+drops to its own row. The name is joined to `let` and the arrow to the name. The value's first
+terminal is joined to the arrow only where the source wrote them on one row, so the row gains one
+token and the value breaks inside itself, by `collectNestedActionStarts`'s argument. A value the
+source started on the row below, typically a `try`, `match` or long application, keeps that row:
+joining it there moves its continuation rows and, when the value's head is short, lets the
+pattern take the break instead.
+
+`doPatDecl`, `let some value ← v | alternative`, keeps the grammar's breaks around its arrow: a
+pattern breaks inside itself, so holding the arrow to it moved the row's break into the pattern,
+and at narrow widths left `let some` a row above `value ←`. -/
+private partial def collectDeclArrowStarts (source : String) (stx : Lean.Syntax)
+    (starts : Array Nat := #[]) : Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let starts :=
+      if kind == ``Lean.Parser.Term.doLetArrow then
+        match (children.toList.drop 1).findSome? fun child => (selectedLeafRanges child)[0]? with
+        | some range => if starts.contains range.start then starts else starts.push range.start
+        | none => starts
+      else
+        if kind == ``Lean.Parser.Term.doIdDecl then
+          let arrow? := children.findIdx? fun child => child matches .atom _ "←" | .atom _ "<-"
+          let arrowStart? := arrow? >>= (children[·]?) >>= sourceRange? |>.map (·.start)
+          let valueStart? :=
+            arrow? >>= (children[· + 1]?) >>= (fun value => (selectedLeafRanges value)[0]?) |>.map
+                (·.start) |>.filter
+              (!opensSourceRow source ·)
+          [arrowStart?, valueStart?].foldl (init := starts) fun starts start? =>
+            match start? with
+            | some start => if starts.contains start then starts else starts.push start
+            | none => starts
+        else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child => collectDeclArrowStarts source child starts
+  | _ => starts
+
 /- `match` keeps its first discriminant on its own row.
 
 `«match»` (`Lean/Parser/Term.lean`) and `doMatch` (`Lean/Parser/Do.lean`) both open
@@ -1471,6 +1514,73 @@ private partial def collectGuardBailouts (source : String) (stx : Lean.Syntax)
     children.foldl (init := ranges) fun ranges child => collectGuardBailouts source child ranges
   | _ => ranges
 
+/- Whether any node under `stx` is one of `kinds`. -/
+private partial def containsKind (kinds : Array Lean.SyntaxNodeKind) (stx : Lean.Syntax) : Bool :=
+  match stx with
+  | .node _ kind children => kinds.contains kind || children.any (containsKind kinds)
+  | _ => false
+
+/- A short `do` block keeps its opener's row: a `match` arm in `do` and an `if` without `else`.
+
+`doSeqItem` (`Lean/Parser/Do.lean`) opens every statement with `ppLine`, and a nested block's
+lines sit in the enclosing block's group. Once that group breaks (one long arm is enough) every
+nested block breaks after its opener, so `| 0 => return 1` becomes `| 0 =>` with `return 1` a row
+below, beside a term `match` whose short arms stay on one row, and the source's one-row
+`if c then f x; return y` takes two. Lean and mathlib write such a block on its opener's row.
+
+It is joined the way `collectGuardBailouts` joins a bail-out, as a range the plan flattens, and under
+the same preconditions: one statement, or statements the source separated with `;` (which
+`collectDoSemicolonStarts` keeps on one row), nothing inside that opens a block of its own, since a
+block's statements break regardless, and no comment. The source must have written the block on its
+opener's row, so a block the author put below its opener stays there, and the joined row must fit
+`line-width`, measured as `joinedBodyFits` measures a body: from the source row's first column with
+whitespace collapsed. An `if` with an `else` is left alone: joining one branch would split the two. -/
+private partial def collectInlineBlocks (source : String) (width : Nat) (stx : Lean.Syntax)
+    (ranges : Array SourceRange := #[]) : Array SourceRange :=
+  let inline? (opener block : Lean.Syntax) : Option SourceRange := do
+    guard (block.isOfKind ``Lean.Parser.Term.doSeqIndent)
+    let items := (block.getArg 0).getArgs.filter (·.isOfKind ``Lean.Parser.Term.doSeqItem)
+    guard (!items.isEmpty)
+    -- Every statement but the last ends with a written `;`.
+    guard (items.pop.all fun item => (item.getArg 1).getNumArgs > 0)
+    let nested :=
+      #[``Lean.Parser.Term.doSeqIndent, ``Lean.Parser.Term.doSeqBracketed,
+        ``Lean.Parser.Tactic.tacticSeq]
+    guard (!items.any (containsKind nested))
+    let range ← sourceRange? block
+    guard (!opensSourceRow source range.start)
+    let text := slice source range
+    guard ((text.splitOn "--").length == 1 && (text.splitOn "/-").length == 1)
+    guard (joinedBodyFits source width opener block)
+    return range
+  match stx with
+  | .node _ kind children =>
+    let ranges :=
+      if kind == ``Lean.Parser.Term.doMatch then
+        let alternatives :=
+          (children.find? (·.isOfKind ``Lean.Parser.Term.matchAlts)).map (·.getArg 0 |>.getArgs)
+        (alternatives.getD #[]).foldl (init := ranges) fun ranges alternative =>
+          match alternative.getArgs.back? >>= inline? alternative with
+          | some range => ranges.push range
+          | none => ranges
+      else
+        if kind == ``Lean.Parser.Term.doIf then
+          match children.findIdx? (· matches .atom _ "then") with
+          | some thenIndex =>
+            -- The `else if` and `else` parts are the nodes after the branch; both must be empty.
+            let rest := children.extract (thenIndex + 2) children.size
+            if rest.any (·.getNumArgs > 0) then ranges
+            else
+              match children[thenIndex + 1]? >>= inline? stx with
+              | some range => ranges.push range
+              | none => ranges
+          | none => ranges
+        else ranges
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := ranges) fun ranges child =>
+      collectInlineBlocks source width child ranges
+  | _ => ranges
+
 /- An application argument spelled `{ … }` keeps the head's row.
 
 `«term{_}»` is what an anonymous-constructor brace spells, and it is never the only way to read
@@ -1867,6 +1977,51 @@ private partial def explodedElementStarts (list : Lean.Syntax) : Array SourceRan
         match (selectedLeafRanges arg)[0]? with
         | some range => starts.push range
         | none => starts
+
+/- A structure instance keeps its first field on the `{` row.
+
+`structInst` (`Lean/Parser/Term.lean`) opens with the atom `"{ "`, whose trailing space is a soft
+`line` like `leftArrow`'s. When the instance's own fields fit, its group stays flat; when one field
+spans several rows -- a `fun … => do` block, say -- the group breaks and so does that line, leaving
+`{` alone on its row above the fields while `}` still closes the last one. Lean and mathlib write
+`{ field := …` with the first field on the brace's row, which is also what lean-fmt lays out when
+the fields merely wrap. The same first-terminal join repairs it, and is safe by the same argument:
+the row gains one token, and a brace that opens its row puts the first field at the column the broken
+layout gave it. A multi-field list's later rows are re-based to that field by its anchor interval.
+
+An instance the magic trailing comma exploded keeps both braces on their own rows: that layout is
+asked for, so it is not collected, and neither is an empty instance, whose next terminal is `}`.
+Nor is a hanging brace, which the source wrote at the end of a row that carries more, with the first
+field opening the row below: `return {` with its fields under it is how Lean's own sources spell a
+long instance, and joining it would move every field to the first one's column. -/
+private partial def collectStructInstOpenStarts (source : String) (stx : Lean.Syntax)
+    (starts : Array Nat := #[]) : Array Nat :=
+  match stx with
+  | .node _ kind children =>
+    let exploded :=
+      match explodedCollectionList? stx >>= lastLeaf? with
+      | some (.atom _ ",") => true
+      | _ => false
+    let starts :=
+      if kind == ``Lean.Parser.Term.structInst && !exploded then
+        let close? := (lastLeaf? stx) >>= sourceRange?
+        let hanging :=
+          match children[0]? >>= sourceRange? with
+          | some brace => !opensSourceRow source brace.start
+          | none => false
+        match (children.toList.drop 1).findSome? fun child => (selectedLeafRanges child)[0]? with
+        | some range =>
+          if
+              close?.any (·.start == range.start) || starts.contains range.start ||
+                hanging && opensSourceRow source range.start then
+            starts
+          else starts.push range.start
+        | none => starts
+      else starts
+    let children := if kind == Lean.choiceKind then children[0]?.toArray else children
+    children.foldl (init := starts) fun starts child =>
+      collectStructInstOpenStarts source child starts
+  | _ => starts
 
 /- The row-spread explosion is retired (LAY-STRUCT-INST): the anchor interval on the fields list
 keeps the first field on a mid-row `{`'s row and lands every later row at that field's column, so
@@ -2925,6 +3080,13 @@ private partial def hasLineBoundary : Std.Format → Bool
   | .append left right => hasLineBoundary left || hasLineBoundary right
   | .nil => false
 
+/- Whether a document spells nothing but whitespace and break decisions. -/
+private partial def breakOnly : Std.Format → Bool
+  | .line | .align _ | .nil => true
+  | .text value => value.all Char.isWhitespace
+  | .nest _ inner | .group inner _ | .tag _ inner => breakOnly inner
+  | .append left right => breakOnly left && breakOnly right
+
 /- Whether a document's own bytes start with a newline. Only a `text` carries one; `line` and `align`
 are decisions, not bytes, which is the whole point of asking. A provably empty side is skipped rather
 than answered for, so a `nest` holding nothing does not hide the leaf behind it. -/
@@ -3584,7 +3746,12 @@ private def constrainBoundary (format : Std.Format) :
       layoutHoistable := false
     if layout matches .dedented | .columned _ | .anchored _ | .explodedClose then
       rowBreak := boundaryFormat state layout
-    unless state.appliedBoundaries.contains state.terminalIndex do
+    if state.appliedBoundaries.contains state.terminalIndex then
+      -- A join means one space between the two terminals, so a later break leaf in front of the
+      -- same terminal goes too. `doIf` spells two: `ppSpace` after `then` and the newline its
+      -- `doSeq` opens with, and joining only the first left the newline behind a trailing space.
+      if layout matches .flat && breakOnly format then format := .nil
+    else
       set
           { state with
             appliedBoundaries := state.appliedBoundaries.push state.terminalIndex
@@ -4123,7 +4290,8 @@ private partial def transformNative :
     finishNode
         { format := .append leftFormat rightFormat
           span? := mergedSpan
-          hoist? } carrier?
+          hoist? }
+        carrier?
   | .group inner behavior => do
     modify fun state =>
         { state with
@@ -4793,7 +4961,8 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   -- Both halves of the guarded-`let` join come from one collected range: the boundary joins the
   -- bail-out to the bar's line, and `transform` flattens the same span so the join leaves no break
   -- behind to land at the wrong column.
-  let joined := collectGuardBailouts source stripped
+  let joined :=
+    collectGuardBailouts source stripped ++ collectInlineBlocks source format.lineWidth stripped
   let unbreakableRuns := collectUnbreakableRuns source stripped
   let categories := (Lean.Parser.parserExtension.getState (← Lean.getEnv)).categories
   let commandKinds := (categories.find? `command).map (·.kinds) |>.getD {}
@@ -4865,6 +5034,8 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   -- What each boundary's terminal heads, for the hoist's privacy test (`Transformed.hoist?`).
   let headSpans := collectHeadSpans terminals stripped
   -- Inside an exploded collection the source-column pins are dropped: explosion and the pins
+  --   collectDeclArrowStarts                      .flat              join, `leftArrow`'s line
+  --   collectStructInstOpenStarts                 .flat              join, `"{ "`'s line
   -- answer the same question (one element per row), the pin's column is stale once the collection
   -- explodes, and `boundaryTable` refuses a `.hard`/`.columned` disagreement at one terminal.
   let outsideExploded (start : Nat) : Bool :=
@@ -4872,6 +5043,7 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
   -- LAY-POSTHOC-RETIREMENT census: every surviving `BoundaryLayout` producer, its class, and the
   -- record that keeps it live. Liveness is not argued here but enforced: the applied-boundary
   -- ledger (`transform`'s "applied X/Y boundaries" refusal) makes a pin that never lands a loud
+  --   collectInlineBlocks (`joined`)              .flat              join, `doSeqItem`'s line
   -- failure, so a silently dead producer cannot exist, and retirement is settled by corpus parity
   -- instead. What anchors retired is already gone (`BoundaryLayout.fieldRow`,
   -- `collectStructInstFieldRows`, `collectRowSpreadStructInsts`, the `whereForm` carve-out --
@@ -4914,22 +5086,24 @@ private def CommandPlan.collect (source : String) (ownership : CommentOwnership)
             (·, BoundaryLayout.flat) ++
           (match format.declarationWhere with
           | .sameLine =>
-            (collectWhereStarts source format.lineWidth stripped).flatMap
-              fun (whereStart, fieldStart?, fits) =>
-              -- A header that cannot carry `" where"` takes the
-              -- `next-line` answer at the `where`. Declining forces
-              -- nothing: the native document then shatters the
-              -- signature at its own `:`, and `where` gets the row
-              -- it needs. Whether the *field* opens its own row is a
-              -- different question, so it is answered the same way
-              -- either way -- otherwise a lone field rides up onto
-              -- the `where` row exactly when the signature is long.
-              match fieldStart?, fits with
-              | none, true => #[]
-              | none, false => #[(whereStart, BoundaryLayout.hard)]
-              | some fieldStart, _ =>
-                #[(whereStart, if fits then BoundaryLayout.flat else BoundaryLayout.hard),
-                  (fieldStart, BoundaryLayout.hard)]
+            (collectDeclArrowStarts source stripped).map (·, BoundaryLayout.flat) ++
+              (collectStructInstOpenStarts source stripped).map (·, BoundaryLayout.flat) ++
+              (collectWhereStarts source format.lineWidth stripped).flatMap
+                fun (whereStart, fieldStart?, fits) =>
+                -- A header that cannot carry `" where"` takes the
+                -- `next-line` answer at the `where`. Declining forces
+                -- nothing: the native document then shatters the
+                -- signature at its own `:`, and `where` gets the row
+                -- it needs. Whether the *field* opens its own row is a
+                -- different question, so it is answered the same way
+                -- either way -- otherwise a lone field rides up onto
+                -- the `where` row exactly when the signature is long.
+                match fieldStart?, fits with
+                | none, true => #[]
+                | none, false => #[(whereStart, BoundaryLayout.hard)]
+                | some fieldStart, _ =>
+                  #[(whereStart, if fits then BoundaryLayout.flat else BoundaryLayout.hard),
+                    (fieldStart, BoundaryLayout.hard)]
           | .nextLine =>
             (collectWhereStarts source format.lineWidth stripped).map (·.1, BoundaryLayout.hard)) ++
           (collectIndentedSequenceStarts source stripped).map (·, BoundaryLayout.hard) ++

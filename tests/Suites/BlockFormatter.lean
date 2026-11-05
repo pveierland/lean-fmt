@@ -25,7 +25,9 @@ private def requiredStrings : Array String :=
     -- Each of these is a soft `line` the grammar puts somewhere no layout breaks on purpose, so the
     -- spelling must hold at every width, the narrowest being where the line used to fire: after a
     -- written `;`, after `←`, and after `match`.
-    "1; cell.set 2", "(← pure", "match ← pure"]
+    "1; cell.set 2", "(← pure", "match ← pure",
+    -- And two more: the line after a structure instance's `{` and the three around a `let`'s `←`.
+    "{ read :=", "let total ← pure"]
 
 namespace BlockFormatter
 
@@ -68,6 +70,12 @@ private def widthCase (root setup : System.FilePath) (application : String) (wid
       "/- long guarded bind -/"] do
     ensure ((text.splitOn comment).length == 2)
         s!"width {width}: {comment} does not occur exactly once"
+  -- A short `do` block keeps its opener's row wherever the joined row fits, though a sibling arm
+  -- breaks: `doSeqItem`'s leading line breaks with the enclosing block otherwise.
+  if width >= 80 then
+    ensureContains text "| 7 => return 1" s!"width {width}"
+    ensureContains text "if value == 0 then cell.set 1; return 0" s!"width {width}"
+  LeanFmt.Test.Analyze.ensureNoTrailingWhitespace s!"width {width}" text
   match (["let first", "let second", "pure second"].map (positionOf? text)).toArray with
   | #[some first, some second, some pure] =>
     ensure (first < second && second < pure) s!"width {width}: let/pure ordering moved"

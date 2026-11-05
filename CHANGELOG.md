@@ -34,6 +34,11 @@ table; 0.7.1 is the last of those and serves Lean `v4.34.0-rc1`.
   long action is no longer spelled `(←` above it; `match` stays with its first discriminant; a `do` item ended by a
   written `;` keeps the next item on its row; and a structure's written constructor (`private mk ::`) opens its own row
   instead of joining the `where` row. Files containing these shapes format differently.
+- Three more such breaks no longer fire. A structure instance keeps its first field on the `{` row, as in
+  `{ read := fun request => do`, instead of leaving `{` alone above it; `let x ←` keeps its name and arrow together,
+  and its value too where the source wrote it on the arrow's row; and a short `do` block the source wrote on its
+  opener's row, in a `match` arm or an `if` without `else`, stays there when the row fits, as in `| 0 => return 1`,
+  though another arm breaks. Files containing these shapes format differently.
 
 ### Fixed
 
