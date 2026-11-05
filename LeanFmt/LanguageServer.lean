@@ -968,8 +968,8 @@ private def handleFormatting (session : Session) (id : RequestID) (params : Json
         session.sink.respond id
             (Json.arr
               #[Lean.toJson
-                  ({  range := lspRangeOf document.text actual
-                      newText := LosslessSource.denormalize body document.lineEndings } :
+                  ({ range := lspRangeOf document.text actual
+                     newText := LosslessSource.denormalize body document.lineEndings } :
                     Lsp.TextEdit)])
       | _, _, _ =>
         session.sink.respond id (Json.arr #[wholeEdit document output])

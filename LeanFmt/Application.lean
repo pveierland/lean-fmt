@@ -2436,8 +2436,7 @@ private partial def organizeWorker (exactRun : ExactRun)
             outcomes.modify
                 (·.set! index
                   (some
-                    {
-                      report :=
+                    { report :=
                         { (baseReport snapshot "organized") with
                           formatted := some output, written := true } }))
         | none =>

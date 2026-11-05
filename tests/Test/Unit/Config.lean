@@ -98,8 +98,7 @@ ignore = [\"FMT002\"]\n\
     -- list. All security rules are stable, so no preview gate is needed to select them.
     let .ok secPlan :=
       config.rulePlan
-        {
-          select :=
+        { select :=
             #["security"] } | throw <| IO.userError "the 'security' category selector was rejected"
     ensure ((secPlan.findings "A.lean" findings).map (·.code) == #["FMT001", "FMT002"])
         "the security category did not select both control-byte rules"
@@ -109,8 +108,7 @@ ignore = [\"FMT002\"]\n\
     -- three with it. The mixed case is the interesting one.
     let .ok gated :=
       config.rulePlan
-        {
-          select :=
+        { select :=
             #["redundancy"] } | throw <| IO.userError "a partly-preview category was rejected"
     ensure (gated.selected == #["FMT011"])
         "the redundancy category did not resolve to exactly its stable member without preview mode"
@@ -210,8 +208,7 @@ ignore = [\"FMT002\"]\n\
     -- extend-select adds FMT011 on top (no preview gate needed). Result: FMT001 + FMT011.
     let .ok extended :=
       config.rulePlan
-        {
-          extendSelect :=
+        { extendSelect :=
             #["FMT011"] } | throw <| IO.userError "extend-select over the config selection was rejected"
     ensure (extended.selected == #["FMT001", "FMT011"])
         "extend-select did not add to the config selection while keeping the config ignore"

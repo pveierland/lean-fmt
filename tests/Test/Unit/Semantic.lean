@@ -52,8 +52,7 @@ private def fixtureSemanticArtifact : ModuleArtifact :=
   { fixtureArtifact with
     semantic :=
       some
-        {
-          diagnostics :=
+        { diagnostics :=
             #[{ kind := "linter.unusedVariables", range := { start := 0, stop := 3 },
                 severity := .warning, message := "unused variable `x`" }] } }
 

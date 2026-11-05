@@ -99,8 +99,7 @@ cannot serve a run that selects a syntax rule (`analysisServes`). -/
 def SemanticAnalysis.success (normalized : String) (findings : Array Finding)
     (tier : Tier := .source) (suppression : SuppressionFacts := {}) (caps : SemanticCaps := {}) :
     SemanticAnalysis :=
-  {
-    result? :=
+  { result? :=
       some
         { schema := semanticResultSchema
           source := Digest.ofString normalized
