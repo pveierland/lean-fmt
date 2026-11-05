@@ -361,8 +361,10 @@ the default `never`.
 
 `grouped` separates two neighbouring elements when either spans several rows or their kinds differ,
 and each kind rule has a pair in the fixture that would come out differently under a nearby rule:
-`left.set` and `right.set` are one kind although their receivers differ, `discard <| …` and
-`discard (…)` are one kind although one is spelled with an operator, and the reassignment
+`left.set` and `right.set` are one kind although their receivers differ, so are `Left.run` and
+`Right.run` although their namespaces do, while `IO.println` and `IO.eprintln` are two;
+`discard <| …` and `discard (…)` are one kind although one is spelled with an operator, and the
+reassignment
 `total := 1` is not a `let`. The `for` body pairs a reassignment with a call, two kinds, so it is
 the block `compact-block-size` keeps tight at 3 and leaves to `grouped` at 0. The blank line the
 source writes after the first `let` is the one `never` removes and every other value keeps. -/
@@ -373,13 +375,14 @@ private def testBlankLinesBetweenDoElements (root work setup : System.FilePath)
       String.intercalate "\n"
         ["module", "", "def check (value : Bool) (label : String) : IO Unit :=",
           "  unless value do", "    throw <| IO.userError label", "",
+          "def Left.run : IO Unit := pure ()", "", "def Right.run : IO Unit := pure ()", "",
           "def run (items : Array Nat) : IO Nat := do", "  let mut total := 0", "",
           "  let cell ← IO.mkRef 0", "  let left ← IO.mkRef 0", "  let right ← IO.mkRef 0",
           "  total := 1", "  for item in items do", "    total := total + item",
           "    cell.set total", "  left.set 1", "  right.set 2", "  discard <| cell.get",
           "  discard (cell.get)", "  check (total > 0) \"positive\"",
-          "  check (total < 1000) \"bounded\"", "  -- Report it.",
-          "  IO.println s!\"total {total}\"", "  return total", ""]
+          "  check (total < 1000) \"bounded\"", "  Left.run", "  Right.run", "  -- Report it.",
+          "  IO.println s!\"total {total}\"", "  IO.eprintln \"done\"", "  return total", ""]
   let render (label : String) (spacing : LeanFmt.Internal.ElementSpacing) (compact : Nat) :
     IO String := do
     let format : LeanFmt.Internal.FormatConfig :=
@@ -403,8 +406,9 @@ private def testBlankLinesBetweenDoElements (root work setup : System.FilePath)
       "  let right ← IO.mkRef 0\n\n  total := 1\n\n  for item in items do",
       "    total := total + item\n    cell.set total\n\n  left.set 1\n  right.set 2\n\n",
       "  discard <| cell.get\n  discard (cell.get)\n\n  check (total > 0)",
-      "  check (total > 0) \"positive\"\n  check (total < 1000) \"bounded\"\n\n  -- Report it.\n",
-      "  IO.println s!\"total {total}\"\n\n  return total"] do
+      "  check (total > 0) \"positive\"\n  check (total < 1000) \"bounded\"\n\n  Left.run\n",
+      "  Left.run\n  Right.run\n\n  -- Report it.\n",
+      "  IO.println s!\"total {total}\"\n\n  IO.eprintln \"done\"\n\n  return total"] do
     ensureContains grouped expected "`grouped` misplaced a blank line"
   let spread ← render "grouped, every block spaced" .grouped 0
   ensureContains spread "    total := total + item\n\n    cell.set total"
