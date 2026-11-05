@@ -91,17 +91,14 @@ def enabled (format : FormatConfig) : Bool :=
 private def first (stx : Lean.Syntax) : Lean.Syntax :=
   if stx.getKind == Lean.choiceKind then stx.getArg 0 else stx
 
-/-- The name a call is grouped by. A qualified name whose first component is lower case is a method
-on a local, `budget.snapshot`, and groups by the method alone, so calls on different receivers
-group; any other name is a function and groups by its full name, so `IO.println` and
-`IO.eprintln` do not. Lean's naming convention is what tells the two apart, since the syntax
-alone cannot. -/
+/-- The name a call is grouped by: its last component, whatever qualifies it. A method on a local,
+`budget.snapshot`, and a function in a namespace, `Catalog.run`, read alike in a run of calls, so
+`left.set` and `right.set` group, as do `Catalog.run` and `Source.run`; `IO.println` and
+`IO.eprintln` still do not. -/
 private def calleeName (name : Lean.Name) : String :=
-  match name.eraseMacroScopes.components with
-  | receiver@(.str _ head) :: _ :: _ =>
-    if head.front.isLower then (name.eraseMacroScopes.components.getLast?.getD receiver).toString
-    else name.eraseMacroScopes.toString
-  | _ => name.eraseMacroScopes.toString
+  match name.eraseMacroScopes with
+  | .str _ last => last
+  | other => other.toString
 
 /-- What an expression calls: the function of an application, seen through `<|`, `$`, `|>`,
 parentheses and method projections, so `throw <| e` calls `throw` and `x |>.push y` calls `push`.

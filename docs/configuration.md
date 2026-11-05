@@ -135,9 +135,8 @@ at the top stay together.
 - `"grouped"`: `"around-multiline"`, and a blank line between two single-row elements of different kinds. Every `let`
   form (`let`, `let ←`, `let … | …`, `let rec`) is one kind and every reassignment (`x := …`, `x ← …`) another. An
   expression is the function it calls: `throw <| e` and `f $ x` call `throw` and `f`, `x |>.push y` calls `push`, and a
-  call on a local, `cell.set v`, is grouped by its method, so `left.set 1` and `right.set 2` stay together. A name
-  whose first component is capitalized is a function or a namespace and is grouped by its full name, so `IO.println`
-  and `IO.eprintln` are two kinds. Anything else, an `if`, a `for`, a `return`, is its own kind.
+  qualified name is grouped by its last component, so `left.set 1` and `right.set 2` stay together, as do `Catalog.run`
+  and `Source.run`, while `IO.println` and `IO.eprintln` are two kinds. Anything else, an `if`, a `for`, a `return`, is its own kind.
 
 `blank-lines-between-tactics` does the same for the tactics of a tactic block, indented or in braces, with the values
 of `blank-lines-between-fields`. A `·` block is one tactic, multi-row when its body is.
